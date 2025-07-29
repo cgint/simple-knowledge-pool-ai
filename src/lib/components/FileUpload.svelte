@@ -8,6 +8,7 @@
 	let filesToUpload = $state<FileList | null>(null);
 	let isDragging = $state(false);
 	let uploadStatus = $state('');
+	let isUploading = $state(false);
 
 	const allowedTypes = ['text/markdown', 'application/pdf', 'text/plain'];
 
@@ -53,6 +54,7 @@
 			return;
 		}
 
+		isUploading = true;
 		uploadStatus = 'Uploading...';
 
 		try {
@@ -75,106 +77,152 @@
 		} catch (error) {
 			uploadStatus = 'An unexpected error occurred.';
 			console.error(error);
+		} finally {
+			isUploading = false;
+			filesToUpload = null; // Reset after upload
 		}
-
-		filesToUpload = null; // Reset after upload
 	}
 </script>
 
-<div class="upload-container">
-	<h2>Upload Knowledge Files</h2>
+<div class="upload-wrapper">
+	<!-- Drop Zone -->
 	<div
-		class="drop-zone"
+		class="drop-zone p-5 text-center border border-2 border-dashed rounded-3 position-relative"
+		class:border-primary={isDragging}
+		class:bg-primary-subtle={isDragging}
 		role="button"
 		tabindex="0"
-		class:dragging={isDragging}
 		ondragenter={() => (isDragging = true)}
 		ondragleave={() => (isDragging = false)}
 		ondragover={(e: DragEvent) => e.preventDefault()}
 		ondrop={handleDrop}
 		onkeydown={(e: KeyboardEvent) => e.key === 'Enter' && (e.currentTarget as HTMLElement).click()}
 	>
-		<p>Drag & drop files here (MD, PDF, TXT) or click to select.</p>
 		<input
 			type="file"
 			multiple
 			accept=".md,.pdf,.txt,text/markdown,application/pdf,text/plain"
 			onchange={handleFileSelect}
+			class="position-absolute top-0 start-0 w-100 h-100 opacity-0"
+			style="cursor: pointer;"
 		/>
+		
+		<div class="upload-content">
+			<i class="bi bi-cloud-upload display-1 text-primary mb-3"></i>
+			<h5 class="mb-3">
+				{isDragging ? 'Drop your files here!' : 'Drag & drop your files here'}
+			</h5>
+			<p class="text-muted mb-3">
+				or <span class="text-primary fw-semibold">click to browse</span>
+			</p>
+			<div class="d-flex justify-content-center gap-2 flex-wrap">
+				<span class="badge bg-light text-dark border">
+					<i class="bi bi-filetype-md me-1"></i>Markdown
+				</span>
+				<span class="badge bg-light text-dark border">
+					<i class="bi bi-filetype-pdf me-1"></i>PDF
+				</span>
+				<span class="badge bg-light text-dark border">
+					<i class="bi bi-filetype-txt me-1"></i>Text
+				</span>
+			</div>
+		</div>
 	</div>
 
+	<!-- Selected Files Display -->
 	{#if filesToUpload && filesToUpload.length > 0}
-		<div class="file-list">
-			<p>Selected files:</p>
-			<ul>
+		<div class="mt-4">
+			<h6 class="text-secondary mb-3">
+				<i class="bi bi-files me-2"></i>Selected Files ({filesToUpload.length})
+			</h6>
+			<div class="row g-2">
 				{#if filesToUpload}
 					{#each Array.from(filesToUpload) as file}
-						<li>{file.name} ({file.type})</li>
+						<div class="col-12 col-md-6">
+							<div class="card card-body py-2 bg-light border-0">
+								<div class="d-flex align-items-center">
+									<i class="bi bi-file-earmark me-2 text-primary"></i>
+									<div class="flex-grow-1 text-truncate">
+										<small class="fw-medium">{file.name}</small>
+										<div class="text-muted" style="font-size: 0.75rem;">
+											{(file.size / 1024).toFixed(1)} KB
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
 					{/each}
 				{/if}
-			</ul>
+			</div>
 		</div>
 	{/if}
 
-	<button onclick={handleUpload} disabled={!filesToUpload}>Upload</button>
+	<!-- Upload Button -->
+	<div class="d-grid gap-2 mt-4">
+		<button 
+			class="btn btn-primary btn-lg"
+			onclick={handleUpload} 
+			disabled={!filesToUpload || isUploading}
+		>
+			{#if isUploading}
+				<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+				Uploading...
+			{:else}
+				<i class="bi bi-upload me-2"></i>
+				Upload {filesToUpload ? `${filesToUpload.length} file${filesToUpload.length > 1 ? 's' : ''}` : 'Files'}
+			{/if}
+		</button>
+	</div>
 
+	<!-- Status Message -->
 	{#if uploadStatus}
-		<p class="status">{uploadStatus}</p>
+		<div class="mt-4">
+			{#if uploadStatus.includes('Successfully')}
+				<div class="alert alert-success d-flex align-items-center" role="alert">
+					<i class="bi bi-check-circle-fill me-2"></i>
+					{uploadStatus}
+				</div>
+			{:else if uploadStatus.includes('Error') || uploadStatus.includes('unexpected')}
+				<div class="alert alert-danger d-flex align-items-center" role="alert">
+					<i class="bi bi-exclamation-triangle-fill me-2"></i>
+					{uploadStatus}
+				</div>
+			{:else if uploadStatus.includes('Uploading')}
+				<div class="alert alert-info d-flex align-items-center" role="alert">
+					<div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>
+					{uploadStatus}
+				</div>
+			{:else}
+				<div class="alert alert-warning d-flex align-items-center" role="alert">
+					<i class="bi bi-info-circle-fill me-2"></i>
+					{uploadStatus}
+				</div>
+			{/if}
+		</div>
 	{/if}
 </div>
 
 <style>
-  .upload-container {
-    border: 2px solid #ccc;
-    border-radius: 8px;
-    padding: 20px;
-    text-align: center;
-    font-family: sans-serif;
-  }
-  .drop-zone {
-    border: 2px dashed #ccc;
-    border-radius: 8px;
-    padding: 40px 20px;
-    position: relative;
-    cursor: pointer;
-    transition: background-color 0.2s;
-  }
-  .drop-zone.dragging {
-    background-color: #f0f8ff;
-    border-color: #007bff;
-  }
-  .drop-zone input[type='file'] {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    opacity: 0;
-    cursor: pointer;
-  }
-  .file-list {
-    text-align: left;
-    margin-top: 10px;
-  }
-  button {
-    margin-top: 15px;
-    padding: 10px 20px;
-    border: none;
-    background-color: #007bff;
-    color: white;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: background-color 0.2s;
-  }
-  button:disabled {
-    background-color: #aaa;
-    cursor: not-allowed;
-  }
-  button:hover:not(:disabled) {
-    background-color: #0056b3;
-  }
-  .status {
-    margin-top: 15px;
-    font-weight: bold;
-  }
+	.drop-zone {
+		transition: all 0.3s ease;
+		cursor: pointer;
+		min-height: 200px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background-color: var(--bs-gray-50);
+	}
+	
+	.drop-zone:hover {
+		border-color: var(--bs-primary) !important;
+		background-color: var(--bs-primary-bg-subtle);
+	}
+	
+	.upload-content {
+		pointer-events: none;
+	}
+	
+	.badge {
+		font-size: 0.75rem;
+	}
 </style>

@@ -31,6 +31,7 @@
   let newMessage = $state('');
   let loading = $state(false);
   let sessionLoading = $state(false);
+  let sidebarCollapsed = $state(false);
 
   $effect(() => {
     poolId = $page.params.poolId;
@@ -179,110 +180,192 @@
   <title>Chat - {pool?.name || 'Loading...'}</title>
 </svelte:head>
 
-<div class="chat-container">
-  <!-- Sidebar with chat history -->
-  <div class="sidebar">
-    <div class="sidebar-header">
-      <h2>Chat History</h2>
-      <button 
-        class="new-chat-btn" 
-        onclick={createNewSession}
-        disabled={sessionLoading || !pool}
-      >
-        {sessionLoading ? '...' : '+ New Chat'}
-      </button>
+<div class="d-flex vh-100 bg-light">
+  <!-- Sidebar -->
+  <div class="sidebar bg-white border-end shadow-sm d-flex flex-column" class:collapsed={sidebarCollapsed}>
+    <!-- Sidebar Header -->
+    <div class="sidebar-header p-3 border-bottom bg-primary text-white">
+      <div class="d-flex align-items-center justify-content-between">
+        <h5 class="mb-0 fw-bold">
+          <i class="bi bi-chat-square-text me-2"></i>
+          <span class="sidebar-text">Chat History</span>
+        </h5>
+        <button 
+          class="btn btn-sm btn-outline-light d-lg-none"
+          onclick={() => sidebarCollapsed = !sidebarCollapsed}
+          title="Toggle sidebar"
+        >
+          <i class="bi bi-list"></i>
+        </button>
+      </div>
+      <div class="mt-2 sidebar-text">
+        <button 
+          class="btn btn-light btn-sm w-100"
+          onclick={createNewSession}
+          disabled={sessionLoading || !pool}
+        >
+          {#if sessionLoading}
+            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+            Creating...
+          {:else}
+            <i class="bi bi-plus-circle me-2"></i>New Chat
+          {/if}
+        </button>
+      </div>
     </div>
 
-    <div class="pool-info">
-      {#if pool}
-        <h3>{pool.name}</h3>
-        <p>{pool.files.length} files</p>
-        <button class="back-btn" onclick={() => goto('/')}>← Back to Pools</button>
-      {/if}
-    </div>
+    <!-- Pool Info -->
+    {#if pool}
+      <div class="pool-info p-3 border-bottom bg-light">
+        <div class="sidebar-text">
+          <h6 class="text-primary mb-1">
+            <i class="bi bi-folder-fill me-2"></i>{pool.name}
+          </h6>
+          <p class="text-muted small mb-2">
+            <i class="bi bi-files me-1"></i>
+            {pool.files.length} document{pool.files.length !== 1 ? 's' : ''}
+          </p>
+          <a href="/" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left me-1"></i>Back to Pools
+          </a>
+        </div>
+      </div>
+    {/if}
 
-    <div class="sessions-list">
+    <!-- Sessions List -->
+    <div class="sessions-list flex-grow-1 p-2" style="overflow-y: auto;">
       {#if chatSessions.length > 0}
         {#each chatSessions as session (session.id)}
           <button 
-            class="session-item"
-            class:active={currentSession?.id === session.id}
+            class="session-item btn w-100 text-start mb-2 p-3"
+            class:btn-primary={currentSession?.id === session.id}
+            class:btn-outline-secondary={currentSession?.id !== session.id}
             onclick={() => selectSession(session)}
           >
-            <div class="session-title">{session.title}</div>
-            <div class="session-meta">
-              {formatDate(session.updatedAt)}
-              • {session.messages.length} messages
+            <div class="sidebar-text">
+              <div class="fw-medium text-truncate">{session.title}</div>
+              <small class="text-muted">
+                {formatDate(session.updatedAt)} • {session.messages.length} messages
+              </small>
             </div>
           </button>
         {/each}
       {:else}
-        <p class="no-sessions">No chat sessions yet. Create your first one!</p>
+        <div class="text-center p-4 sidebar-text">
+          <i class="bi bi-chat-square-dots display-4 text-muted mb-3"></i>
+          <p class="text-muted small">No chat sessions yet. Create your first one!</p>
+        </div>
       {/if}
     </div>
   </div>
 
-  <!-- Main chat area -->
-  <div class="chat-main">
+  <!-- Main Chat Area -->
+  <div class="chat-main flex-grow-1 d-flex flex-column">
     {#if currentSession}
-      <div class="chat-header">
-        <h1>{currentSession.title}</h1>
+      <!-- Chat Header -->
+      <div class="chat-header p-3 bg-white border-bottom shadow-sm">
+        <div class="d-flex align-items-center">
+          <button 
+            class="btn btn-outline-secondary btn-sm me-3 d-lg-none"
+            onclick={() => sidebarCollapsed = !sidebarCollapsed}
+          >
+            <i class="bi bi-list"></i>
+          </button>
+          <div>
+            <h4 class="mb-0 text-primary">{currentSession.title}</h4>
+            <small class="text-muted">
+              Chatting with {pool?.name} • {currentSession.messages.length} messages
+            </small>
+          </div>
+        </div>
       </div>
 
-      <div class="messages-container">
+      <!-- Messages Container -->
+      <div class="messages-container flex-grow-1 p-3" style="overflow-y: auto;">
         {#if currentSession.messages.length > 0}
           {#each currentSession.messages as message (message.timestamp)}
-            <div class="message" class:user-message={message.role === 'user'}>
-              <div class="message-content">
-                {message.content}
-              </div>
-              <div class="message-time">
-                {formatTime(message.timestamp)}
+            <div class="message-wrapper mb-4" class:text-end={message.role === 'user'}>
+              <div class="message d-inline-block" class:user-message={message.role === 'user'}>
+                <div class="message-content p-3 rounded-3 shadow-sm">
+                  {message.content}
+                </div>
+                <small class="message-time text-muted d-block mt-1">
+                  {formatTime(message.timestamp)}
+                </small>
               </div>
             </div>
           {/each}
         {:else}
-          <div class="empty-chat">
-            <p>Start a conversation about the documents in <strong>{pool?.name}</strong></p>
-            <p>You can ask questions about any of the {pool?.files.length} files in this knowledge pool.</p>
+          <div class="empty-chat text-center py-5">
+            <i class="bi bi-chat-quote display-1 text-primary mb-3"></i>
+            <h5 class="text-primary">Start a conversation</h5>
+            <p class="text-muted">
+              Ask questions about the <strong>{pool?.files.length} documents</strong> in <strong>{pool?.name}</strong>
+            </p>
           </div>
         {/if}
 
         {#if loading}
-          <div class="message">
-            <div class="message-content typing">
-              <div class="typing-indicator">
-                <span></span>
-                <span></span>
-                <span></span>
+          <div class="message-wrapper mb-4">
+            <div class="message d-inline-block">
+              <div class="message-content p-3 rounded-3 bg-light">
+                <div class="typing-indicator d-flex align-items-center">
+                  <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                  </div>
+                  <span class="text-muted">AI is thinking...</span>
+                </div>
               </div>
             </div>
           </div>
         {/if}
       </div>
 
-      <div class="input-container">
-        <textarea
-          bind:value={newMessage}
-          placeholder="Ask a question about the documents in this pool..."
-          rows="3"
-          onkeypress={handleKeyPress}
-          disabled={loading}
-        ></textarea>
-        <button 
-          onclick={sendMessage} 
-          disabled={!newMessage.trim() || loading}
-          class="send-btn"
-        >
-          {loading ? 'Sending...' : 'Send'}
-        </button>
+      <!-- Input Container -->
+      <div class="input-container p-3 bg-white border-top">
+        <div class="row g-2">
+          <div class="col">
+            <textarea
+              bind:value={newMessage}
+              placeholder="Ask a question about the documents in this pool..."
+              rows="3"
+              class="form-control"
+              onkeypress={handleKeyPress}
+              disabled={loading}
+            ></textarea>
+          </div>
+          <div class="col-auto d-flex align-items-end">
+            <button 
+              onclick={sendMessage} 
+              disabled={!newMessage.trim() || loading}
+              class="btn btn-primary"
+              style="height: fit-content;"
+            >
+              {#if loading}
+                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                Sending...
+              {:else}
+                <i class="bi bi-send me-2"></i>Send
+              {/if}
+            </button>
+          </div>
+        </div>
       </div>
     {:else}
-      <div class="no-session">
-        <h2>Welcome to {pool?.name || 'this Knowledge Pool'}</h2>
-        <p>Select an existing chat session from the sidebar or create a new one to start chatting with the documents.</p>
-        <button class="create-first-chat" onclick={createNewSession}>
-          Start Your First Chat
+      <!-- No Session Selected -->
+      <div class="no-session d-flex flex-column align-items-center justify-content-center h-100 text-center p-4">
+        <i class="bi bi-chat-square-heart display-1 text-primary mb-4"></i>
+        <h3 class="text-primary mb-3">Welcome to {pool?.name || 'this Knowledge Pool'}</h3>
+        <p class="text-muted mb-4 lead">
+          Select an existing chat session from the sidebar or create a new one to start chatting with your documents.
+        </p>
+        <button class="btn btn-primary btn-lg" onclick={createNewSession} disabled={sessionLoading}>
+          {#if sessionLoading}
+            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+            Creating...
+          {:else}
+            <i class="bi bi-chat-dots me-2"></i>Start Your First Chat
+          {/if}
         </button>
       </div>
     {/if}
@@ -290,315 +373,97 @@
 </div>
 
 <style>
-  .chat-container {
-    display: flex;
-    height: 100vh;
-    background: #f5f5f5;
-  }
-
   .sidebar {
-    width: 300px;
-    background: white;
-    border-right: 1px solid #e0e0e0;
-    display: flex;
-    flex-direction: column;
+    width: 350px;
+    min-width: 350px;
+    transition: all 0.3s ease;
   }
-
-  .sidebar-header {
-    padding: 20px;
-    border-bottom: 1px solid #e0e0e0;
-    background: #fafafa;
+  
+  .sidebar.collapsed {
+    width: 0;
+    min-width: 0;
+    overflow: hidden;
   }
-
-  .sidebar-header h2 {
-    margin: 0 0 15px 0;
-    font-size: 18px;
-    color: #333;
+  
+  .sidebar-text {
+    opacity: 1;
+    transition: opacity 0.3s ease;
   }
-
-  .new-chat-btn {
-    width: 100%;
-    padding: 10px 15px;
-    background: #007bff;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 14px;
+  
+  .sidebar.collapsed .sidebar-text {
+    opacity: 0;
   }
-
-  .new-chat-btn:hover:not(:disabled) {
-    background: #0056b3;
-  }
-
-  .new-chat-btn:disabled {
-    background: #ccc;
-    cursor: not-allowed;
-  }
-
-  .pool-info {
-    padding: 20px;
-    border-bottom: 1px solid #e0e0e0;
-    background: #f8f9fa;
-  }
-
-  .pool-info h3 {
-    margin: 0 0 5px 0;
-    color: #333;
-    font-size: 16px;
-  }
-
-  .pool-info p {
-    margin: 0 0 15px 0;
-    color: #666;
-    font-size: 14px;
-  }
-
-  .back-btn {
-    padding: 8px 12px;
-    background: #6c757d;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 12px;
-  }
-
-  .back-btn:hover {
-    background: #545b62;
-  }
-
-  .sessions-list {
-    flex: 1;
-    overflow-y: auto;
-    padding: 10px;
-  }
-
-  .session-item {
-    width: 100%;
-    padding: 15px;
-    margin-bottom: 8px;
-    background: white;
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
-    cursor: pointer;
-    text-align: left;
-    transition: all 0.2s;
-  }
-
-  .session-item:hover {
-    background: #f8f9fa;
-    border-color: #007bff;
-  }
-
-  .session-item.active {
-    background: #e7f3ff;
-    border-color: #007bff;
-  }
-
-  .session-title {
-    font-weight: 500;
-    color: #333;
-    margin-bottom: 5px;
-  }
-
-  .session-meta {
-    font-size: 12px;
-    color: #666;
-  }
-
-  .no-sessions {
-    text-align: center;
-    color: #666;
-    padding: 20px;
-    font-style: italic;
-  }
-
-  .chat-main {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    background: white;
-  }
-
-  .chat-header {
-    padding: 20px;
-    border-bottom: 1px solid #e0e0e0;
-    background: #fafafa;
-  }
-
-  .chat-header h1 {
-    margin: 0;
-    font-size: 20px;
-    color: #333;
-  }
-
-  .messages-container {
-    flex: 1;
-    overflow-y: auto;
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-  }
-
+  
   .message {
-    max-width: 80%;
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
+    max-width: 70%;
   }
-
-  .user-message {
-    align-self: flex-end;
-    align-items: flex-end;
+  
+  .user-message .message-content {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
   }
-
+  
   .message-content {
-    padding: 12px 16px;
-    border-radius: 12px;
-    background: #f1f3f5;
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
     line-height: 1.5;
     white-space: pre-wrap;
+    word-wrap: break-word;
   }
-
-  .user-message .message-content {
-    background: #007bff;
-    color: white;
-  }
-
-  .message-time {
-    font-size: 12px;
-    color: #666;
-    padding: 0 5px;
-  }
-
-  .empty-chat {
-    text-align: center;
-    padding: 40px 20px;
-    color: #666;
-  }
-
-  .empty-chat p {
-    margin: 10px 0;
-  }
-
-  .no-session {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    text-align: center;
-    padding: 40px;
-    color: #666;
-  }
-
-  .no-session h2 {
-    color: #333;
-    margin-bottom: 15px;
-  }
-
-  .create-first-chat {
-    margin-top: 20px;
-    padding: 12px 24px;
-    background: #007bff;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 16px;
-  }
-
-  .create-first-chat:hover {
-    background: #0056b3;
-  }
-
-  .input-container {
-    padding: 20px;
-    border-top: 1px solid #e0e0e0;
-    background: #fafafa;
-    display: flex;
-    gap: 15px;
-    align-items: flex-end;
-  }
-
-  .input-container textarea {
-    flex: 1;
-    padding: 12px;
-    border: 1px solid #ccc;
-    border-radius: 8px;
-    resize: none;
-    font-family: inherit;
-    font-size: 14px;
-  }
-
-  .input-container textarea:focus {
-    outline: none;
-    border-color: #007bff;
-  }
-
-  .send-btn {
-    padding: 12px 20px;
-    background: #007bff;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 14px;
-    white-space: nowrap;
-  }
-
-  .send-btn:hover:not(:disabled) {
-    background: #0056b3;
-  }
-
-  .send-btn:disabled {
-    background: #ccc;
-    cursor: not-allowed;
-  }
-
-  .typing {
-    background: #f1f3f5 !important;
-  }
-
+  
   .typing-indicator {
-    display: flex;
-    gap: 4px;
-    align-items: center;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+  
+  .session-item {
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+  }
+  
+  .session-item:hover {
+    transform: translateX(2px);
+  }
+  
+  .messages-container {
+    scroll-behavior: smooth;
+  }
+  
+  .message-wrapper:last-child {
+    scroll-margin-bottom: 1rem;
   }
 
-  .typing-indicator span {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #666;
-    animation: typing 1.4s infinite ease-in-out;
-  }
-
-  .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
-  .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
-
-  @keyframes typing {
-    0%, 80%, 100% { 
-      transform: scale(0);
-    } 40% { 
-      transform: scale(1);
-    }
-  }
-
-  @media (max-width: 768px) {
-    .chat-container {
-      flex-direction: column;
+  @media (max-width: 991.98px) {
+    .sidebar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      z-index: 1000;
+      transform: translateX(-100%);
     }
     
-    .sidebar {
+    .sidebar:not(.collapsed) {
+      transform: translateX(0);
+    }
+    
+    .chat-main {
       width: 100%;
-      height: 200px;
+    }
+  }
+  
+  @media (max-width: 576px) {
+    .sidebar {
+      width: 100vw;
+      min-width: 100vw;
     }
     
     .message {
-      max-width: 95%;
+      max-width: 85%;
     }
   }
 </style> 

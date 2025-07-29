@@ -12,6 +12,7 @@
   let newPoolName = $state('');
   let selectedFiles = $state<string[]>([]);
   let statusMessage = $state('');
+  let isCreating = $state(false);
 
   async function fetchAvailableFiles() {
     try {
@@ -41,6 +42,11 @@
     fetchPools();
   });
 
+  function handleFormSubmit(event: Event) {
+    event.preventDefault();
+    createPool();
+  }
+
   async function createPool() {
     if (!newPoolName.trim()) {
       statusMessage = 'Pool name cannot be empty.';
@@ -51,6 +57,7 @@
       return;
     }
 
+    isCreating = true;
     statusMessage = 'Creating pool...';
 
     try {
@@ -72,10 +79,16 @@
     } catch (error) {
       statusMessage = 'An error occurred while creating the pool.';
       console.error('Failed to create pool:', error);
+    } finally {
+      isCreating = false;
     }
   }
 
   async function deletePool(id: string) {
+    if (!confirm('Are you sure you want to delete this pool? This action cannot be undone.')) {
+      return;
+    }
+    
     try {
       const response = await fetch(`/api/pools/${id}`, { method: 'DELETE' });
       if (response.ok) {
@@ -94,151 +107,223 @@
   }
 </script>
 
-<div class="pool-manager-container">
-  <h2>Manage Knowledge Pools</h2>
+<div class="pool-manager">
+  <!-- Create New Pool Section -->
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-primary text-white border-0">
+      <h4 class="mb-0">
+        <i class="bi bi-plus-circle me-2"></i>Create New Knowledge Pool
+      </h4>
+    </div>
+    <div class="card-body">
+      <form onsubmit={handleFormSubmit}>
+        <!-- Pool Name Input -->
+        <div class="mb-3">
+          <label for="poolName" class="form-label fw-semibold">Pool Name</label>
+          <input 
+            type="text" 
+            class="form-control form-control-lg" 
+            id="poolName"
+            placeholder="Enter a descriptive name for your knowledge pool"
+            bind:value={newPoolName}
+            disabled={isCreating}
+          />
+        </div>
 
-  <div class="pool-creation-form">
-    <h3>Create New Pool</h3>
-    <input type="text" placeholder="New Pool Name" bind:value={newPoolName} />
+        <!-- File Selection -->
+        <div class="mb-4">
+          <label class="form-label fw-semibold">Select Files for Pool</label>
+          {#if availableFiles.length > 0}
+            <div class="border rounded-3 p-3 bg-light" style="max-height: 250px; overflow-y: auto;">
+              <div class="row g-2">
+                {#each availableFiles as file}
+                  <div class="col-12 col-md-6">
+                    <div class="form-check">
+                      <input 
+                        class="form-check-input" 
+                        type="checkbox" 
+                        value={file} 
+                        bind:group={selectedFiles}
+                        id="file-{file}"
+                        disabled={isCreating}
+                      />
+                      <label class="form-check-label d-flex align-items-center" for="file-{file}">
+                        <i class="bi bi-file-earmark-text me-2 text-primary"></i>
+                        <span class="text-truncate">{file}</span>
+                      </label>
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            </div>
+            <div class="form-text">
+              <i class="bi bi-info-circle me-1"></i>
+              Selected: {selectedFiles.length} file{selectedFiles.length !== 1 ? 's' : ''}
+            </div>
+          {:else}
+            <div class="alert alert-warning d-flex align-items-center mb-0" role="alert">
+              <i class="bi bi-exclamation-triangle me-2"></i>
+              <div>
+                No files available. <strong>Upload some files first</strong> to create a knowledge pool.
+              </div>
+            </div>
+          {/if}
+        </div>
 
-    <h4>Select Files for Pool:</h4>
-    {#if availableFiles.length > 0}
-      <div class="file-selection-list">
-        {#each availableFiles as file}
-          <label>
-            <input type="checkbox" value={file} bind:group={selectedFiles} />
-            {file}
-          </label>
+        <!-- Create Button -->
+        <div class="d-grid">
+          <button 
+            type="submit" 
+            class="btn btn-primary btn-lg"
+            disabled={availableFiles.length === 0 || isCreating}
+          >
+            {#if isCreating}
+              <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+              Creating Pool...
+            {:else}
+              <i class="bi bi-collection me-2"></i>
+              Create Knowledge Pool
+            {/if}
+          </button>
+        </div>
+
+        <!-- Status Message -->
+        {#if statusMessage}
+          <div class="mt-3">
+            {#if statusMessage.includes('successfully')}
+              <div class="alert alert-success d-flex align-items-center" role="alert">
+                <i class="bi bi-check-circle-fill me-2"></i>
+                {statusMessage}
+              </div>
+            {:else if statusMessage.includes('Failed') || statusMessage.includes('error')}
+              <div class="alert alert-danger d-flex align-items-center" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                {statusMessage}
+              </div>
+            {:else if statusMessage.includes('Creating')}
+              <div class="alert alert-info d-flex align-items-center" role="alert">
+                <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>
+                {statusMessage}
+              </div>
+            {:else}
+              <div class="alert alert-warning d-flex align-items-center" role="alert">
+                <i class="bi bi-info-circle-fill me-2"></i>
+                {statusMessage}
+              </div>
+            {/if}
+          </div>
+        {/if}
+      </form>
+    </div>
+  </div>
+
+  <!-- Existing Pools Section -->
+  <div class="existing-pools">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+      <h4 class="mb-0">
+        <i class="bi bi-collection me-2"></i>Your Knowledge Pools
+      </h4>
+      {#if pools.length > 0}
+        <span class="badge bg-primary-subtle text-primary-emphasis fs-6 px-3 py-2">
+          {pools.length} pool{pools.length !== 1 ? 's' : ''}
+        </span>
+      {/if}
+    </div>
+
+    {#if pools.length > 0}
+      <div class="row g-4">
+        {#each pools as pool (pool.id)}
+          <div class="col-12 col-lg-6">
+            <div class="card h-100 border-0 shadow-sm">
+              <div class="card-header bg-white border-0 pb-2">
+                <div class="d-flex align-items-start justify-content-between">
+                  <div class="flex-grow-1">
+                    <h5 class="card-title mb-1 text-primary">
+                      <i class="bi bi-folder-fill me-2"></i>{pool.name}
+                    </h5>
+                    <p class="text-muted mb-0 small">
+                      <i class="bi bi-files me-1"></i>
+                      {pool.files.length} file{pool.files.length !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                  <button 
+                    class="btn btn-outline-danger btn-sm"
+                    onclick={() => deletePool(pool.id)}
+                    title="Delete pool"
+                  >
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </div>
+              </div>
+              
+              <div class="card-body pt-0">
+                <!-- Files List -->
+                <div class="mb-3">
+                  <h6 class="text-secondary mb-2">Files in this pool:</h6>
+                  <div class="files-grid">
+                    {#each pool.files as file}
+                      <div class="file-item">
+                        <i class="bi bi-file-earmark-text text-primary me-2"></i>
+                        <span class="text-truncate">{file}</span>
+                      </div>
+                    {/each}
+                  </div>
+                </div>
+                
+                <!-- Chat Button -->
+                <div class="d-grid">
+                  <a 
+                    href="/chat/{pool.id}" 
+                    class="btn btn-primary"
+                  >
+                    <i class="bi bi-chat-dots me-2"></i>
+                    Start Chatting
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
         {/each}
       </div>
     {:else}
-      <p>No files available. Upload some first.</p>
-    {/if}
-
-    <button onclick={createPool} disabled={availableFiles.length === 0}>Create Pool</button>
-    {#if statusMessage}
-      <p class="status-message">{statusMessage}</p>
-    {/if}
-  </div>
-
-      <div class="existing-pools">
-    <h3>Existing Pools</h3>
-    {#if pools.length > 0}
-      <ul>
-        {#each pools as pool (pool.id)}
-          <li>
-            <div class="pool-header">
-              <strong>{pool.name}</strong>
-              <div class="pool-actions">
-                <a href="/chat/{pool.id}" class="chat-button">💬 Chat</a>
-                <button class="delete-button" onclick={() => deletePool(pool.id)}>Delete</button>
-              </div>
-            </div>
-            <ul class="file-list">
-              {#each pool.files as file}
-                <li>{file}</li>
-              {/each}
-            </ul>
-          </li>
-        {/each}
-      </ul>
-    {:else}
-      <p>No pools created yet.</p>
+      <div class="text-center py-5">
+        <i class="bi bi-collection display-1 text-muted mb-3"></i>
+        <h5 class="text-muted mb-3">No Knowledge Pools Yet</h5>
+        <p class="text-muted">
+          Create your first knowledge pool by uploading some files and organizing them into a collection.
+        </p>
+      </div>
     {/if}
   </div>
 </div>
 
 <style>
-  .pool-manager-container {
-    padding: 20px;
-    border: 1px solid #ccc;
-    border-radius: 8px;
-    background-color: #f9f9f9;
+  .pool-manager {
+    max-width: 100%;
   }
-  .pool-creation-form,
-  .existing-pools {
-    margin-top: 20px;
-  }
-  input[type='text'] {
-    width: 100%;
-    padding: 8px;
-    margin-bottom: 10px;
-  }
-  .file-selection-list {
+  
+  .files-grid {
+    display: grid;
+    gap: 0.5rem;
     max-height: 150px;
     overflow-y: auto;
-    border: 1px solid #ddd;
-    padding: 10px;
-    margin-bottom: 10px;
-  }
-  .file-selection-list label {
-    display: block;
-  }
-  .status-message {
-    margin-top: 10px;
-    color: green;
-  }
-  .existing-pools ul {
-    list-style-type: none;
-    padding: 0;
-  }
-  .existing-pools li {
-    padding: 15px;
-    border-bottom: 1px solid #eee;
-    background: white;
-    margin-bottom: 10px;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
   }
   
-  .pool-header {
+  .file-item {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    margin-bottom: 10px;
+    padding: 0.375rem 0.5rem;
+    background-color: var(--bs-gray-100);
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
   }
   
-  .pool-actions {
-    display: flex;
-    gap: 10px;
-    align-items: center;
+  .card {
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
   }
   
-  .chat-button {
-    background: #007bff;
-    color: white;
-    text-decoration: none;
-    padding: 8px 15px;
-    border-radius: 5px;
-    font-size: 14px;
-    transition: background-color 0.2s;
-  }
-  
-  .chat-button:hover {
-    background: #0056b3;
-  }
-  
-  .file-list {
-    margin-left: 20px;
-    color: #666;
-  }
-  
-  .file-list li {
-    padding: 2px 0;
-    font-size: 14px;
-  }
-  
-  .delete-button {
-    background-color: #ff4d4d;
-    color: white;
-    border: none;
-    padding: 8px 15px;
-    cursor: pointer;
-    border-radius: 5px;
-    font-size: 14px;
-  }
-  
-  .delete-button:hover {
-    background-color: #ff3333;
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15) !important;
   }
 </style>
