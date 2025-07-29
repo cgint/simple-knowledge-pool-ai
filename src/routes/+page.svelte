@@ -4,8 +4,8 @@
 
   let poolManager: PoolManager;
 
-  async function handleUpload(event: CustomEvent) {
-    console.log('Files uploaded:', event.detail.files);
+  async function handleUploadComplete() {
+    console.log('Files uploaded successfully');
     // Refresh the pool manager to show the new files
     if (poolManager) {
       await poolManager.refresh();
@@ -18,7 +18,7 @@
 
   <div class="container">
     <div class="upload-section">
-      <FileUpload on:upload={handleUpload} />
+      <FileUpload onUploadComplete={handleUploadComplete} on:upload={handleUploadComplete} />
     </div>
 
     <div class="pool-section">

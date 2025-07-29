@@ -1,5 +1,9 @@
 <script lang="ts">
+	import { createEventDispatcher } from 'svelte';
+
 	let { onUploadComplete = () => {} } = $props<{ onUploadComplete?: () => void }>();
+
+	const dispatch = createEventDispatcher();
 
 	let filesToUpload = $state<FileList | null>(null);
 	let isDragging = $state(false);
@@ -19,6 +23,8 @@
 		isDragging = false;
 		if (event.dataTransfer?.files) {
 			filesToUpload = event.dataTransfer.files;
+			// Automatically start upload when files are dropped
+			handleUpload();
 		}
 	}
 
@@ -58,7 +64,10 @@
 			if (response.ok) {
 				const result = await response.json();
 				uploadStatus = `Successfully uploaded: ${result.files.join(', ')}`;
-				onUploadComplete(); // Notify parent component
+				
+				// Notify parent component via both methods for compatibility
+				onUploadComplete();
+				dispatch('upload', { files: result.files });
 			} else {
 				const error = await response.json();
 				uploadStatus = `Error: ${error.message}`;
