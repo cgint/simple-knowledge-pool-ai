@@ -64,3 +64,22 @@ export async function POST({ request }: RequestEvent) {
 
   return json(newPool, { status: 201 });
 }
+
+// DELETE /api/pools/[id] - Delete a pool
+export async function DELETE({ params }: RequestEvent) {
+  if (!params.id) {
+    return json({ message: 'Pool ID is required' }, { status: 400 });
+  }
+
+  const pools = await getPools();
+  const poolIndex = pools.findIndex(p => p.id === params.id);
+  
+  if (poolIndex === -1) {
+    return json({ message: 'Pool not found' }, { status: 404 });
+  }
+
+  pools.splice(poolIndex, 1);
+  await savePools(pools);
+
+  return json({ message: 'Pool deleted successfully' });
+}

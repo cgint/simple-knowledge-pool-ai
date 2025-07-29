@@ -121,19 +121,24 @@
     {/if}
   </div>
 
-  <div class="existing-pools">
+      <div class="existing-pools">
     <h3>Existing Pools</h3>
     {#if pools.length > 0}
       <ul>
         {#each pools as pool (pool.id)}
           <li>
-            <strong>{pool.name}</strong>
-            <ul>
+            <div class="pool-header">
+              <strong>{pool.name}</strong>
+              <div class="pool-actions">
+                <a href="/chat/{pool.id}" class="chat-button">💬 Chat</a>
+                <button class="delete-button" onclick={() => deletePool(pool.id)}>Delete</button>
+              </div>
+            </div>
+            <ul class="file-list">
               {#each pool.files as file}
                 <li>{file}</li>
               {/each}
             </ul>
-            <button class="delete-button" onclick={() => deletePool(pool.id)}>Delete</button>
           </li>
         {/each}
       </ul>
@@ -178,15 +183,62 @@
     padding: 0;
   }
   .existing-pools li {
-    padding: 10px;
+    padding: 15px;
     border-bottom: 1px solid #eee;
+    background: white;
+    margin-bottom: 10px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
   }
+  
+  .pool-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  
+  .pool-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  
+  .chat-button {
+    background: #007bff;
+    color: white;
+    text-decoration: none;
+    padding: 8px 15px;
+    border-radius: 5px;
+    font-size: 14px;
+    transition: background-color 0.2s;
+  }
+  
+  .chat-button:hover {
+    background: #0056b3;
+  }
+  
+  .file-list {
+    margin-left: 20px;
+    color: #666;
+  }
+  
+  .file-list li {
+    padding: 2px 0;
+    font-size: 14px;
+  }
+  
   .delete-button {
-    margin-left: 10px;
     background-color: #ff4d4d;
     color: white;
     border: none;
-    padding: 5px 10px;
+    padding: 8px 15px;
     cursor: pointer;
+    border-radius: 5px;
+    font-size: 14px;
+  }
+  
+  .delete-button:hover {
+    background-color: #ff3333;
   }
 </style>
