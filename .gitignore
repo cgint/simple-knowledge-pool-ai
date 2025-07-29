@@ -83,3 +83,6 @@ playwright-report/
 *.gz
 *.zip
 *.tar
+
+# Ignore Code Giant output directory
+.codegiant/

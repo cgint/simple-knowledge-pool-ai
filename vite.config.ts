@@ -4,6 +4,13 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
 	plugins: [sveltekit()],
 	test: {
-		include: ['src/**/*.{test,spec}.{js,ts}']
+		// Run tests from the tests/ directory
+		include: ['tests/**/*.{test,spec}.{js,ts}'],
+
+		// Set up a browser-like environment for component testing
+		environment: 'jsdom',
+
+		// Run a setup file before each test file
+		setupFiles: ['./tests/setup.ts']
 	}
 });
