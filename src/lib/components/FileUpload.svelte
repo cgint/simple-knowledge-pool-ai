@@ -87,7 +87,7 @@
 <div class="upload-wrapper">
 	<!-- Drop Zone -->
 	<div
-		class="drop-zone p-5 text-center border border-2 border-dashed rounded-3 position-relative"
+		class="drop-zone p-1 text-center border border-2 border-dashed rounded-3 position-relative"
 		class:border-primary={isDragging}
 		class:bg-primary-subtle={isDragging}
 		role="button"
@@ -108,24 +108,13 @@
 		/>
 		
 		<div class="upload-content">
-			<i class="bi bi-cloud-upload display-1 text-primary mb-3"></i>
+			<i class="bi bi-cloud-upload display-5 text-primary mb-3"></i>
 			<h5 class="mb-3">
 				{isDragging ? 'Drop your files here!' : 'Drag & drop your files here'}
 			</h5>
 			<p class="text-muted mb-3">
 				or <span class="text-primary fw-semibold">click to browse</span>
 			</p>
-			<div class="d-flex justify-content-center gap-2 flex-wrap">
-				<span class="badge bg-light text-dark border">
-					<i class="bi bi-filetype-md me-1"></i>Markdown
-				</span>
-				<span class="badge bg-light text-dark border">
-					<i class="bi bi-filetype-pdf me-1"></i>PDF
-				</span>
-				<span class="badge bg-light text-dark border">
-					<i class="bi bi-filetype-txt me-1"></i>Text
-				</span>
-			</div>
 		</div>
 	</div>
 
@@ -206,7 +195,7 @@
 	.drop-zone {
 		transition: all 0.3s ease;
 		cursor: pointer;
-		min-height: 200px;
+		min-height: 60px;
 		display: flex;
 		align-items: center;
 		justify-content: center;

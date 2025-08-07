@@ -17,29 +17,14 @@
   <title>Simple Knowledge Pool AI</title>
 </svelte:head>
 
-<!-- Hero Section -->
+<!-- Header Section -->
 <div class="hero-section">
-  <div class="container py-5">
+  <div class="container py-3">
     <div class="row justify-content-center text-center text-white">
-      <div class="col-lg-8">
-        <h1 class="display-4 fw-bold mb-4 text-shadow">
-          <i class="bi bi-brain me-3"></i>Simple Knowledge Pool AI
+      <div class="col-12">
+        <h1 class="h2 fw-bold mb-0 text-shadow">
+          Simple Knowledge Pool AI
         </h1>
-        <p class="lead mb-4 text-shadow">
-          Transform your documents into intelligent, searchable knowledge pools. 
-          Upload your files and start having conversations with your data.
-        </p>
-        <div class="d-flex justify-content-center gap-3 mb-4">
-          <span class="badge bg-white bg-opacity-90 text-primary fs-6 px-3 py-2 shadow-sm">
-            <i class="bi bi-file-earmark-text me-2"></i>Markdown
-          </span>
-          <span class="badge bg-white bg-opacity-90 text-primary fs-6 px-3 py-2 shadow-sm">
-            <i class="bi bi-file-earmark-pdf me-2"></i>PDF
-          </span>
-          <span class="badge bg-white bg-opacity-90 text-primary fs-6 px-3 py-2 shadow-sm">
-            <i class="bi bi-file-earmark-text me-2"></i>Text
-          </span>
-        </div>
       </div>
     </div>
   </div>
@@ -100,13 +85,13 @@
 </footer>
 
 <style>
-  /* Hero Section with beautiful gradient background */
+  /* Header Section with beautiful gradient background */
   .hero-section {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     background-size: 400% 400%;
     animation: gradientShift 15s ease infinite;
     position: relative;
-    min-height: 60vh;
+    min-height: auto;
     display: flex;
     align-items: center;
   }
@@ -167,18 +152,5 @@
     box-shadow: 0 8px 25px rgba(0,0,0,0.1) !important;
   }
   
-  .badge {
-    font-weight: 500;
-    transition: all 0.2s ease;
-  }
-  
-  .badge:hover {
-    transform: translateY(-1px);
-  }
-  
-  /* Body background enhancement */
-  body {
-    background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
-    min-height: 100vh;
-  }
+
 </style>

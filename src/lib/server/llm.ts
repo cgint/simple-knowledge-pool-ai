@@ -1,4 +1,12 @@
 import type { ChatMessage } from '../types/chat.js';
+import { 
+  GEMINI_API_KEY, 
+  AI_RETRY_MAX_ATTEMPTS, 
+  AI_TIMEOUT_MS, 
+  DEFAULT_MODEL,
+  MAX_CONTEXT_LENGTH,
+  MAX_HISTORY_MESSAGES 
+} from '../constants.js';
 
 export interface LLMConfig {
   provider: 'gemini' | 'openai' | 'anthropic';
@@ -24,65 +32,150 @@ export async function callLLM(
   userMessage: string,
   config?: LLMConfig
 ): Promise<LLMResponse> {
-  // For now, return a mock response
-  // In a real implementation, this would integrate with your chosen LLM provider
+  if (!GEMINI_API_KEY) {
+    throw new Error('VITE_GEMINI_API_KEY environment variable is not set');
+  }
+
+  const model = config?.model || DEFAULT_MODEL;
+  const limitedHistory = history.slice(-MAX_HISTORY_MESSAGES);
   
-  const contextLength = poolContext.length;
-  const fileCount = (poolContext.match(/--- File:/g) || []).length;
-  
-  // Simulate processing time
-  await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
-  
-  const mockResponse = `I understand you're asking about the ${fileCount} files in this knowledge pool. Based on the context provided (${contextLength} characters), I can help answer questions about the content.
-
-Your message: "${userMessage}"
-
-This is a placeholder response. In a real implementation, I would:
-1. Parse the full context from all files in the pool
-2. Consider the chat history for continuity
-3. Send a properly formatted prompt to your chosen LLM provider (Google Gemini, OpenAI, Anthropic, etc.)
-4. Return the AI's actual response
-
-The context includes the following files and I'm ready to answer questions about them based on their content.`;
-
-  return {
-    content: mockResponse,
-    usage: {
-      promptTokens: Math.floor(contextLength / 4) + userMessage.length,
-      completionTokens: mockResponse.length,
-      totalTokens: Math.floor(contextLength / 4) + userMessage.length + mockResponse.length
-    }
-  };
+  return await makeGeminiCall(model, poolContext, limitedHistory, userMessage);
 }
 
 /**
- * Format the context and history for LLM consumption
+ * Make direct API call to Gemini with context
  */
-export function formatPrompt(
+async function makeGeminiCall(
+  model: string,
   poolContext: string,
   history: ChatMessage[],
   userMessage: string
-): string {
-  let prompt = `You are an AI assistant helping users understand and analyze documents in a knowledge pool. You have access to the following context:
+): Promise<LLMResponse> {
+  const modelEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+  
+  // Build conversation contents with history
+  const contents = [];
+  
+  // Add conversation history
+  for (const message of history) {
+    contents.push({
+      role: message.role === 'user' ? 'user' : 'model',
+      parts: [{ text: message.content }]
+    });
+  }
+  
+  // Build the prompt with context
+  const prompt = formatPrompt(poolContext, userMessage);
+  
+  // Add current user message
+  contents.push({
+    role: 'user',
+    parts: [{ text: prompt }]
+  });
 
-KNOWLEDGE POOL CONTEXT:
+
+  const disabledThinking = { maxThinkingTokens: 0 }
+
+  const requestBody = {
+    contents: contents,
+    generationConfig: {
+      temperature: 0.3,
+      maxOutputTokens: 8192,
+      thinkingConfig: disabledThinking
+    },
+  };
+
+  return await makeCallWithRetry(modelEndpoint, requestBody);
+}
+
+/**
+ * Make API call with retry logic
+ */
+async function makeCallWithRetry(endpoint: string, requestBody: any): Promise<LLMResponse> {
+  let attempts = 0;
+  
+  while (attempts < AI_RETRY_MAX_ATTEMPTS) {
+    try {
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Request timeout')), AI_TIMEOUT_MS)
+      );
+
+      const apiCall = fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      const response = await Promise.race([apiCall, timeoutPromise]);
+      
+      if (!response.ok) {
+        throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
+      }
+      
+      const result = await response.json();
+      
+      if (!result.candidates || !result.candidates[0] || !result.candidates[0].content) {
+        throw new Error('Invalid response format from Gemini API');
+      }
+      
+      const content = result.candidates[0].content.parts[0].text;
+      
+      // Estimate token usage
+      const promptTokens = estimateTokens(JSON.stringify(requestBody));
+      const completionTokens = estimateTokens(content);
+      
+      return {
+        content,
+        usage: {
+          promptTokens,
+          completionTokens,
+          totalTokens: promptTokens + completionTokens
+        }
+      };
+      
+    } catch (error) {
+      attempts++;
+      console.error(`LLM API attempt ${attempts}/${AI_RETRY_MAX_ATTEMPTS} failed:`, error);
+      
+      if (attempts >= AI_RETRY_MAX_ATTEMPTS) {
+        throw new Error(`Failed to get LLM response after ${AI_RETRY_MAX_ATTEMPTS} attempts: ${error}`);
+      }
+      
+      // Exponential backoff
+      const delay = Math.min(1000 * Math.pow(2, attempts), 10000);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  
+  throw new Error('Unexpected error in retry logic');
+}
+
+/**
+ * Format the prompt with file context and user message
+ */
+function formatPrompt(poolContext: string, userMessage: string): string {
+  let prompt = `You are an AI assistant helping users understand and analyze documents in a knowledge pool.
+
+=== KNOWLEDGE POOL DOCUMENTS ===
 ${poolContext}
 
-CHAT HISTORY:
-`;
+=== CURRENT QUESTION ===
+${userMessage}
 
-  if (history.length > 0) {
-    for (const message of history) {
-      prompt += `${message.role.toUpperCase()}: ${message.content}\n`;
-    }
-  } else {
-    prompt += 'No previous messages in this conversation.\n';
-  }
+=== INSTRUCTIONS ===
+Please provide a helpful, accurate, and detailed response based on the documents provided above. Here are your guidelines:
 
-  prompt += `
-CURRENT USER MESSAGE: ${userMessage}
+1. **Multi-modal Analysis**: You can read and analyze PDFs, images, and text files directly
+2. **Reference Sources**: When referencing information, mention which document it comes from
+3. **Comprehensive Understanding**: Use information from all provided documents to give complete answers
+4. **Admit Limitations**: If something can't be answered from the available documents, clearly state this
+5. **Maintain Context**: Consider our conversation history for context
+6. **Document Overview**: If asked about available documents, describe what you have access to
 
-Please provide a helpful, accurate response based on the context provided. If the question cannot be answered from the available documents, please say so clearly.`;
+For PDFs and images: You can read text, analyze charts, tables, diagrams, and extract any relevant information.
+For text files: The content is provided directly in this prompt.`;
 
   return prompt;
 }
@@ -92,8 +185,8 @@ Please provide a helpful, accurate response based on the context provided. If th
  */
 export const LLM_CONFIGS = {
   gemini: {
-    model: 'gemini-1.5-flash',
-    maxTokens: 8192
+    model: 'gemini-2.5-flash',
+    maxTokens: 1000000
   },
   openai: {
     model: 'gpt-4',

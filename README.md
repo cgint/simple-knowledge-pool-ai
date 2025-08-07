@@ -72,8 +72,21 @@ src/
 - npm or pnpm
 
 ### Setup
+
+1. **Install dependencies**:
 ```bash
 npm install
+```
+
+2. **Configure Google Gemini API**:
+   - Get your API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
+   - Create a `.env` file in the root directory:
+   ```bash
+   VITE_GEMINI_API_KEY=your_gemini_api_key_here
+   ```
+
+3. **Start development server**:
+```bash
 npm run dev
 ```
 
@@ -84,13 +97,20 @@ npm run build
 
 ## LLM Integration
 
-The application includes a modular LLM integration system at `src/lib/server/llm.ts`. Currently returns mock responses, but is designed to easily integrate with:
+The application uses **Google Gemini** for AI-powered chat functionality. The modular LLM integration system at `src/lib/server/llm.ts` includes:
 
-- Google Gemini
-- OpenAI GPT
-- Anthropic Claude
+- ✅ **Google Gemini 2.5 Flash** (currently implemented)
+- 🔧 OpenAI GPT (extensible)
+- 🔧 Anthropic Claude (extensible)
 
-To integrate a real LLM provider, update the `callLLM` function in the LLM module.
+### Features:
+- Retry logic with exponential backoff for reliability
+- Context length management for large documents
+- Chat history preservation
+- Error handling and timeout protection
+
+### Configuration:
+Set `VITE_GEMINI_API_KEY` in your environment variables to enable AI responses.
 
 ## Chat Features
 
@@ -132,13 +152,14 @@ console.log(result.response); // AI's response
 
 ## Future Enhancements
 
-- Real LLM provider integration (Gemini, GPT, Claude)
+- Additional LLM providers (OpenAI GPT, Anthropic Claude)
 - Advanced document parsing (better PDF support, Word docs)
 - Retrieval Augmented Generation (RAG) for large document sets
 - User authentication and multi-user support
 - Export chat sessions
 - Document search and filtering
 - Advanced chat features (file attachments, code highlighting)
+- Vector embeddings for semantic search
 
 ## License
 
