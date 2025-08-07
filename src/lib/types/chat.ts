@@ -6,21 +6,15 @@ export interface ChatMessage {
 
 export interface ChatSession {
   id: string;
-  poolId: string;
+  tags: string[];
   title: string;
   messages: ChatMessage[];
   createdAt: number;
   updatedAt: number;
 }
 
-export interface Pool {
-  id: string;
-  name: string;
-  files: string[];
-}
-
 export interface ChatRequest {
-  poolId: string;
+  tags: string[];
   message: string;
   history: ChatMessage[];
 }

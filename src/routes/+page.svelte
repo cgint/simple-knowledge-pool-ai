@@ -1,15 +1,13 @@
 <script lang="ts">
   import FileUpload from '$lib/components/FileUpload.svelte';
-  import PoolManager from '$lib/components/PoolManager.svelte';
+  import TagManager from '$lib/components/TagManager.svelte';
 
-  let poolManager: PoolManager;
+  let tagManager: TagManager;
 
   async function handleUploadComplete() {
     console.log('Files uploaded successfully');
-    // Refresh the pool manager to show the new files
-    if (poolManager) {
-      await poolManager.refresh();
-    }
+    // Refresh tag manager to show the new files
+    if (tagManager) await tagManager.reload();
   }
 </script>
 
@@ -48,17 +46,11 @@
       </div>
     </div>
 
-    <!-- Pool Management Section -->
+    <!-- Tag Management Section (replaces pools) -->
     <div class="col-12">
       <div class="card shadow-sm border-0 h-100">
-        <div class="card-header bg-white border-0 pb-0">
-          <h3 class="card-title text-primary mb-0">
-            <i class="bi bi-collection me-2"></i>Knowledge Pools
-          </h3>
-          <p class="text-muted mt-2 mb-0">Organize and manage your document collections</p>
-        </div>
         <div class="card-body">
-          <PoolManager bind:this={poolManager} />
+          <TagManager bind:this={tagManager} />
         </div>
       </div>
     </div>

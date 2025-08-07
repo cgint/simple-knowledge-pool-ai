@@ -3,22 +3,10 @@ import { json } from '@sveltejs/kit';
 import { readFile } from 'fs/promises';
 import path from 'path';
 import { callLLM } from '$lib/server/llm.js';
-import type { Pool, ChatMessage, ChatRequest } from '$lib/types/chat.js';
+import type { ChatMessage } from '$lib/types/chat.js';
 
-const poolsFilePath = path.join(process.cwd(), 'data', 'pools.json');
+const fileTagsPath = path.join(process.cwd(), 'data', 'file-tags.json');
 const uploadsDir = path.join(process.cwd(), 'data', 'uploads');
-
-async function getPools(): Promise<Pool[]> {
-  try {
-    const data = await readFile(poolsFilePath, 'utf-8');
-    return JSON.parse(data);
-  } catch (error) {
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
-      return [];
-    }
-    throw error;
-  }
-}
 
 async function getFileContent(filename: string): Promise<string> {
   try {
@@ -30,42 +18,82 @@ async function getFileContent(filename: string): Promise<string> {
   }
 }
 
-async function getPoolContext(poolId: string): Promise<string> {
-  const pools = await getPools();
-  const pool = pools.find(p => p.id === poolId);
-  
-  if (!pool) {
-    throw new Error('Pool not found');
+async function buildContextFromTags(tags: string[]): Promise<string> {
+  let map: Record<string, string[]> = {};
+  try {
+    const raw = await readFile(fileTagsPath, 'utf-8');
+    map = JSON.parse(raw) || {};
+  } catch {
+    map = {};
   }
-
-  const fileContents = await Promise.all(
-    pool.files.map(async (filename) => {
+  const files = Object.entries(map)
+    .filter(([, fileTags]) => Array.isArray(fileTags) && tags.every(t => fileTags.includes(t)))
+    .map(([file]) => file);
+  if (files.length === 0) {
+    return 'No files match the selected tags.';
+  }
+  const contents = await Promise.all(
+    files.map(async (filename) => {
       const content = await getFileContent(filename);
       return `--- File: ${filename} ---\n${content}\n`;
     })
   );
-
-  return fileContents.join('\n');
+  return contents.join('\n');
 }
 
-async function processWithLLM(poolContext: string, history: ChatMessage[], userMessage: string): Promise<string> {
-  const response = await callLLM(poolContext, history, userMessage);
+async function processWithLLM(
+  poolContext: string,
+  history: ChatMessage[],
+  userMessage: string,
+  fileParts?: { mimeType: string; dataBase64: string }[]
+): Promise<string> {
+  const response = await callLLM(poolContext, history, userMessage, undefined, fileParts);
   return response.content;
 }
 
 export async function POST({ request }: RequestEvent) {
   try {
-    const { poolId, message, history }: ChatRequest = await request.json();
+    // Support both JSON body and multipart form with an attached file
+    let tags: string[] | undefined;
+    let message: string | undefined;
+    let history: ChatMessage[] | undefined;
+    let fileParts: { mimeType: string; dataBase64: string }[] | undefined;
 
-    if (!poolId || !message) {
-      return json({ error: 'Pool ID and message are required' }, { status: 400 });
+    const contentType = request.headers.get('content-type') || '';
+    if (contentType.includes('multipart/form-data')) {
+      const form = await request.formData();
+      const tagsRaw = form.get('tags') as string | undefined;
+      message = form.get('message') as string | undefined;
+      const historyStr = form.get('history') as string | undefined;
+      if (historyStr) {
+        try { history = JSON.parse(historyStr) as ChatMessage[]; } catch {}
+      }
+      if (tagsRaw) {
+        try { const parsed = JSON.parse(tagsRaw); if (Array.isArray(parsed)) tags = parsed as string[]; } catch {}
+      }
+      const maybeFile = form.get('file');
+      if (maybeFile && maybeFile instanceof File) {
+        const buf = Buffer.from(await maybeFile.arrayBuffer());
+        fileParts = [{ mimeType: maybeFile.type || 'application/octet-stream', dataBase64: buf.toString('base64') }];
+      }
+    } else {
+      const body = await request.json();
+      tags = body.tags;
+      message = body.message;
+      history = body.history;
     }
 
-    // Get pool context (all file contents)
-    const poolContext = await getPoolContext(poolId);
+    if (!message) {
+      return json({ error: 'Message is required' }, { status: 400 });
+    }
+
+    // Build context from tags (if provided)
+    const poolContext = Array.isArray(tags) && tags.length > 0
+      ? await buildContextFromTags(tags)
+      : '';
     
     // Call LLM with context, history, and new message
-    const response = await processWithLLM(poolContext, history || [], message);
+    const response = await processWithLLM(poolContext, history || [], message, fileParts);
 
     return json({
       response,
@@ -79,4 +107,4 @@ export async function POST({ request }: RequestEvent) {
       { status: 500 }
     );
   }
-} 
+}

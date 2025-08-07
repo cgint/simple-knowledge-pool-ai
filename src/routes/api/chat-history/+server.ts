@@ -14,7 +14,7 @@ interface ChatMessage {
 
 interface ChatSession {
   id: string;
-  poolId: string;
+  tags: string[];
   title: string;
   messages: ChatMessage[];
   createdAt: number;
@@ -45,7 +45,7 @@ async function saveChatSession(session: ChatSession): Promise<void> {
   await writeFile(filePath, JSON.stringify(session, null, 2));
 }
 
-async function getAllChatSessions(poolId?: string): Promise<ChatSession[]> {
+async function getAllChatSessions(filterTags?: string[]): Promise<ChatSession[]> {
   try {
     await ensureChatHistoryDir();
     const { readdir } = await import('fs/promises');
@@ -65,9 +65,8 @@ async function getAllChatSessions(poolId?: string): Promise<ChatSession[]> {
     );
 
     const validSessions = sessions.filter((session): session is ChatSession => session !== null);
-    
-    if (poolId) {
-      return validSessions.filter(session => session.poolId === poolId);
+    if (filterTags && filterTags.length > 0) {
+      return validSessions.filter(session => Array.isArray(session.tags) && filterTags.every(t => session.tags.includes(t)));
     }
     
     return validSessions.sort((a, b) => b.updatedAt - a.updatedAt);
@@ -76,25 +75,24 @@ async function getAllChatSessions(poolId?: string): Promise<ChatSession[]> {
   }
 }
 
-// GET /api/chat-history?poolId=xxx - Get all chat sessions for a pool
+// GET /api/chat-history?tags=["tag1","tag2"] - Get all chat sessions filtered by tags
 export async function GET({ url }: RequestEvent) {
-  const poolId = url.searchParams.get('poolId');
-  const sessions = await getAllChatSessions(poolId || undefined);
+  const tagsParam = url.searchParams.get('tags');
+  let tags: string[] | undefined = undefined;
+  if (tagsParam) {
+    try { const parsed = JSON.parse(tagsParam); if (Array.isArray(parsed)) tags = parsed as string[]; } catch {}
+  }
+  const sessions = await getAllChatSessions(tags || undefined);
   return json(sessions);
 }
 
 // POST /api/chat-history - Create new chat session
 export async function POST({ request }: RequestEvent) {
   try {
-    const { poolId, title } = await request.json();
-
-    if (!poolId) {
-      return json({ error: 'Pool ID is required' }, { status: 400 });
-    }
-
+    const { tags, title } = await request.json();
     const session: ChatSession = {
       id: uuidv4(),
-      poolId,
+      tags: Array.isArray(tags) ? tags : [],
       title: title || 'New Chat',
       messages: [],
       createdAt: Date.now(),

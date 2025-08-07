@@ -14,12 +14,12 @@ describe('FileUpload.svelte', () => {
 
   it('should enable the upload button when files are selected', async () => {
     // Arrange
-    render(FileUpload);
-    const uploadButton = screen.getByRole('button', { name: /upload/i });
-    const fileInput = screen.getByLabelText(/drag & drop files here/i);
+    const { container } = render(FileUpload);
+    const [uploadButton] = screen.getAllByRole('button', { name: /upload/i });
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
 
     // Act
-    const file = new File(['hello'], 'hello.png', { type: 'image/png' });
+    const file = new File(['hello'], 'hello.txt', { type: 'text/plain' });
     await fireEvent.change(fileInput, { target: { files: [file] } });
 
     // Assert

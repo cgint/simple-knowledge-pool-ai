@@ -3,11 +3,7 @@
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
 
-  interface Pool {
-    id: string;
-    name: string;
-    files: string[];
-  }
+  // Pools removed; using tags instead
 
   interface ChatMessage {
     role: 'user' | 'assistant';
@@ -17,47 +13,39 @@
 
   interface ChatSession {
     id: string;
-    poolId: string;
+    tags: string[];
     title: string;
     messages: ChatMessage[];
     createdAt: number;
     updatedAt: number;
   }
 
-  let poolId = $state($page.params.poolId);
-  let pool = $state<Pool | null>(null);
+  let poolId = $state<string>($page.params.poolId || '');
+  let tags = $state<string[]>([]);
   let chatSessions = $state<ChatSession[]>([]);
   let currentSession = $state<ChatSession | null>(null);
   let newMessage = $state('');
   let loading = $state(false);
   let sessionLoading = $state(false);
   let sidebarCollapsed = $state(false);
+  let attachedFile = $state<File | null>(null);
+  let attachedFileError = $state<string | null>(null);
 
   $effect(() => {
-    poolId = $page.params.poolId;
-    if (poolId) {
-      loadPool();
-      loadChatSessions();
+    poolId = $page.params.poolId || '';
+    // Parse tags from query string
+    const tagsParam = $page.url.searchParams.get('tags');
+    if (tagsParam) {
+      try { const parsed = JSON.parse(tagsParam); if (Array.isArray(parsed)) tags = parsed as string[]; } catch {}
     }
+    loadChatSessions();
   });
 
-  async function loadPool() {
-    try {
-      const response = await fetch(`/api/pools/${poolId}`);
-      if (response.ok) {
-        pool = await response.json();
-      } else {
-        console.error('Pool not found');
-        goto('/');
-      }
-    } catch (error) {
-      console.error('Failed to load pool:', error);
-    }
-  }
+  // Removed loadPool; tags drive context
 
   async function loadChatSessions() {
     try {
-      const response = await fetch(`/api/chat-history?poolId=${poolId}`);
+      const response = await fetch(`/api/chat-history${tags.length ? `?tags=${encodeURIComponent(JSON.stringify(tags))}` : ''}`);
       if (response.ok) {
         chatSessions = await response.json();
       }
@@ -67,17 +55,12 @@
   }
 
   async function createNewSession() {
-    if (!pool) return;
-
     sessionLoading = true;
     try {
       const response = await fetch('/api/chat-history', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          poolId: pool.id, 
-          title: `Chat about ${pool.name}` 
-        })
+        body: JSON.stringify({ tags, title: tags.length ? `Chat about tags: ${tags.join(', ')}` : 'General Chat' })
       });
 
       if (response.ok) {
@@ -112,16 +95,27 @@
     loading = true;
 
     try {
-      // Send to chat API
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          poolId: currentSession.poolId,
-          message: messageToSend,
-          history: currentSession.messages.slice(0, -1) // Don't include the message we just added
-        })
-      });
+      let response: Response;
+      const historyToSend = currentSession.messages.slice(0, -1);
+
+      if (attachedFile) {
+        const form = new FormData();
+        form.append('tags', JSON.stringify(currentSession?.tags || tags));
+        form.append('message', messageToSend);
+        form.append('history', JSON.stringify(historyToSend));
+        form.append('file', attachedFile);
+        response = await fetch('/api/chat', { method: 'POST', body: form });
+      } else {
+        response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tags: currentSession?.tags || tags,
+            message: messageToSend,
+            history: historyToSend
+          })
+        });
+      }
 
       if (response.ok) {
         const result = await response.json();
@@ -136,6 +130,9 @@
 
         // Save updated session
         await saveSession();
+        // Clear attachment after successful send
+        attachedFile = null;
+        attachedFileError = null;
       } else {
         console.error('Failed to send message');
       }
@@ -144,6 +141,20 @@
     } finally {
       loading = false;
     }
+  }
+
+  function handleAttachFile(event: Event) {
+    attachedFileError = null;
+    const input = event.target as HTMLInputElement;
+    if (!input.files || input.files.length === 0) { attachedFile = null; return; }
+    const file = input.files[0];
+    if (file && file.type !== 'application/pdf') {
+      attachedFileError = 'Only PDF files are supported.';
+      attachedFile = null;
+      input.value = '';
+      return;
+    }
+    attachedFile = file;
   }
 
   async function saveSession() {
@@ -177,7 +188,7 @@
 </script>
 
 <svelte:head>
-  <title>Chat - {pool?.name || 'Loading...'}</title>
+  <title>Chat</title>
 </svelte:head>
 
 <div class="d-flex vh-100 bg-light">
@@ -194,6 +205,7 @@
           class="btn btn-sm btn-outline-light d-lg-none"
           onclick={() => sidebarCollapsed = !sidebarCollapsed}
           title="Toggle sidebar"
+          aria-label="Toggle sidebar"
         >
           <i class="bi bi-list"></i>
         </button>
@@ -202,7 +214,7 @@
         <button 
           class="btn btn-light btn-sm w-100"
           onclick={createNewSession}
-          disabled={sessionLoading || !pool}
+          disabled={sessionLoading}
         >
           {#if sessionLoading}
             <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
@@ -214,23 +226,7 @@
       </div>
     </div>
 
-    <!-- Pool Info -->
-    {#if pool}
-      <div class="pool-info p-3 border-bottom bg-light">
-        <div class="sidebar-text">
-          <h6 class="text-primary mb-1">
-            <i class="bi bi-folder-fill me-2"></i>{pool.name}
-          </h6>
-          <p class="text-muted small mb-2">
-            <i class="bi bi-files me-1"></i>
-            {pool.files.length} document{pool.files.length !== 1 ? 's' : ''}
-          </p>
-          <a href="/" class="btn btn-outline-secondary btn-sm">
-            <i class="bi bi-arrow-left me-1"></i>Back to Pools
-          </a>
-        </div>
-      </div>
-    {/if}
+    <!-- Pool Info removed -->
 
     <!-- Sessions List -->
     <div class="sessions-list flex-grow-1 p-2" style="overflow-y: auto;">
@@ -241,6 +237,7 @@
             class:btn-primary={currentSession?.id === session.id}
             class:btn-outline-secondary={currentSession?.id !== session.id}
             onclick={() => selectSession(session)}
+            aria-label={`Open chat session ${session.title}`}
           >
             <div class="sidebar-text">
               <div class="fw-medium text-truncate">{session.title}</div>
@@ -268,13 +265,14 @@
           <button 
             class="btn btn-outline-secondary btn-sm me-3 d-lg-none"
             onclick={() => sidebarCollapsed = !sidebarCollapsed}
+            aria-label="Toggle sidebar"
           >
             <i class="bi bi-list"></i>
           </button>
           <div>
             <h4 class="mb-0 text-primary">{currentSession.title}</h4>
             <small class="text-muted">
-              Chatting with {pool?.name} • {currentSession.messages.length} messages
+              {currentSession.tags?.length ? `Tags: ${currentSession.tags.join(', ')}` : 'No tags'} • {currentSession.messages.length} messages
             </small>
           </div>
         </div>
@@ -300,7 +298,7 @@
             <i class="bi bi-chat-quote display-1 text-primary mb-3"></i>
             <h5 class="text-primary">Start a conversation</h5>
             <p class="text-muted">
-              Ask questions about the <strong>{pool?.files.length} documents</strong> in <strong>{pool?.name}</strong>
+              {currentSession.tags?.length ? `Ask about documents tagged: ${currentSession.tags.join(', ')}` : 'General chat'}
             </p>
           </div>
         {/if}
@@ -327,12 +325,24 @@
           <div class="col">
             <textarea
               bind:value={newMessage}
-              placeholder="Ask a question about the documents in this pool..."
+              placeholder="Ask a question..."
               rows="3"
               class="form-control"
               onkeypress={handleKeyPress}
               disabled={loading}
             ></textarea>
+            <div class="d-flex align-items-center gap-2 mt-2">
+              <label class="btn btn-outline-secondary btn-sm mb-0">
+                <input type="file" accept="application/pdf" onchange={handleAttachFile} style="display:none" />
+                <i class="bi bi-paperclip me-1"></i>Attach PDF
+              </label>
+              {#if attachedFile}
+                <small class="text-muted">{attachedFile.name}</small>
+              {/if}
+              {#if attachedFileError}
+                <small class="text-danger">{attachedFileError}</small>
+              {/if}
+            </div>
           </div>
           <div class="col-auto d-flex align-items-end">
             <button 
@@ -355,7 +365,7 @@
       <!-- No Session Selected -->
       <div class="no-session d-flex flex-column align-items-center justify-content-center h-100 text-center p-4">
         <i class="bi bi-chat-square-heart display-1 text-primary mb-4"></i>
-        <h3 class="text-primary mb-3">Welcome to {pool?.name || 'this Knowledge Pool'}</h3>
+        <h3 class="text-primary mb-3">Welcome</h3>
         <p class="text-muted mb-4 lead">
           Select an existing chat session from the sidebar or create a new one to start chatting with your documents.
         </p>

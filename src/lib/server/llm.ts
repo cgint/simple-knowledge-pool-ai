@@ -23,6 +23,12 @@ export interface LLMResponse {
   };
 }
 
+export interface InlineFilePart {
+  mimeType: string;
+  dataBase64?: string;
+  fileUri?: string;
+}
+
 /**
  * Main LLM interface for sending messages with context
  */
@@ -30,7 +36,8 @@ export async function callLLM(
   poolContext: string,
   history: ChatMessage[],
   userMessage: string,
-  config?: LLMConfig
+  config?: LLMConfig,
+  fileParts?: InlineFilePart[]
 ): Promise<LLMResponse> {
   if (!GEMINI_API_KEY) {
     throw new Error('VITE_GEMINI_API_KEY environment variable is not set');
@@ -38,8 +45,8 @@ export async function callLLM(
 
   const model = config?.model || DEFAULT_MODEL;
   const limitedHistory = history.slice(-MAX_HISTORY_MESSAGES);
-  
-  return await makeGeminiCall(model, poolContext, limitedHistory, userMessage);
+
+  return await makeGeminiCall(model, poolContext, limitedHistory, userMessage, fileParts);
 }
 
 /**
@@ -49,7 +56,8 @@ async function makeGeminiCall(
   model: string,
   poolContext: string,
   history: ChatMessage[],
-  userMessage: string
+  userMessage: string,
+  fileParts?: InlineFilePart[]
 ): Promise<LLMResponse> {
   const modelEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
   
@@ -68,10 +76,18 @@ async function makeGeminiCall(
   const prompt = formatPrompt(poolContext, userMessage);
   
   // Add current user message
-  contents.push({
-    role: 'user',
-    parts: [{ text: prompt }]
-  });
+  const parts: any[] = [{ text: prompt }];
+  if (Array.isArray(fileParts) && fileParts.length > 0) {
+    for (const fp of fileParts) {
+      if (!fp) continue;
+      if (fp.fileUri) {
+        parts.push({ fileData: { fileUri: fp.fileUri, mimeType: fp.mimeType || 'application/octet-stream' } });
+      } else if (fp.dataBase64) {
+        parts.push({ inlineData: { mimeType: fp.mimeType || 'application/octet-stream', data: fp.dataBase64 } });
+      }
+    }
+  }
+  contents.push({ role: 'user', parts });
 
 
   const disabledThinking = { maxThinkingTokens: 0 }

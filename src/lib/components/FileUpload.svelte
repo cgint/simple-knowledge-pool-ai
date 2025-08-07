@@ -10,7 +10,7 @@
 	let uploadStatus = $state('');
 	let isUploading = $state(false);
 
-	const allowedTypes = ['text/markdown', 'application/pdf', 'text/plain'];
+	const allowedTypes = ['text/markdown', 'application/pdf', 'text/plain', 'multipart/related', 'message/rfc822'];
 
 	function handleFileSelect(event: Event) {
 		const target = event.target as HTMLInputElement;
@@ -40,7 +40,9 @@
 
 		if (!filesToUpload) return;
 		for (const file of filesToUpload as any as File[]) {
-			if (allowedTypes.includes(file.type) || file.name.endsWith('.md')) {
+			const lower = file.name.toLowerCase();
+			const isMht = lower.endsWith('.mht') || lower.endsWith('.mhtml');
+			if (allowedTypes.includes(file.type) || file.name.endsWith('.md') || isMht) {
 				formData.append('files', file);
 				validFiles.push(file);
 			} else {
@@ -65,7 +67,9 @@
 
 			if (response.ok) {
 				const result = await response.json();
-				uploadStatus = `Successfully uploaded: ${result.files.join(', ')}`;
+				const baseMsg = `Successfully uploaded: ${result.files.join(', ')}`;
+				const pdfMsg = result.generatedPdfs && result.generatedPdfs.length ? `; Generated PDFs: ${result.generatedPdfs.join(', ')}` : '';
+				uploadStatus = baseMsg + pdfMsg;
 				
 				// Notify parent component via both methods for compatibility
 				onUploadComplete();
@@ -101,7 +105,7 @@
 		<input
 			type="file"
 			multiple
-			accept=".md,.pdf,.txt,text/markdown,application/pdf,text/plain"
+			accept=".md,.pdf,.txt,.mht,.mhtml,text/markdown,application/pdf,text/plain,multipart/related,message/rfc822"
 			onchange={handleFileSelect}
 			class="position-absolute top-0 start-0 w-100 h-100 opacity-0"
 			style="cursor: pointer;"
