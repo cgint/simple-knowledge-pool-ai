@@ -57,7 +57,7 @@ src/
 │   │   ├── files/+server.ts        # File listing API
 │   │   ├── file-tags/+server.ts    # File tags API
 │   │   └── files/upload/+server.ts # File upload API
-│   ├── chat/[poolId]/+page.svelte  # Chat interface page (tags-based)
+│   ├── chat/[id]/+page.svelte      # Chat interface page (tags-based)
 │   └── +page.svelte                # Main page
 └── data/
     ├── uploads/                    # Uploaded files (gitignored)

@@ -85,7 +85,7 @@ export async function POST(event: RequestEvent) {
             if (!s.size) throw new Error('wkhtmltopdf produced zero bytes');
           } catch (wkErr) {
             await new Promise<void>((resolve, reject) => {
-              pdf.create(htmlString, { format: 'A4' }).toFile(pdfPath, (err) => {
+              pdf.create(htmlString, { format: 'A4' }).toFile(pdfPath, (err: unknown) => {
                 if (err) return reject(err);
                 resolve();
               });

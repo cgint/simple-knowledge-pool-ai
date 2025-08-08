@@ -20,7 +20,6 @@
     updatedAt: number;
   }
 
-  let poolId = $state<string>($page.params.poolId || '');
   let tags = $state<string[]>([]);
   let chatSessions = $state<ChatSession[]>([]);
   let currentSession = $state<ChatSession | null>(null);
@@ -28,11 +27,8 @@
   let loading = $state(false);
   let sessionLoading = $state(false);
   let sidebarCollapsed = $state(false);
-  let attachedFile = $state<File | null>(null);
-  let attachedFileError = $state<string | null>(null);
 
   $effect(() => {
-    poolId = $page.params.poolId || '';
     // Parse tags from query string
     const tagsParam = $page.url.searchParams.get('tags');
     if (tagsParam) {
@@ -79,6 +75,26 @@
     currentSession = session;
   }
 
+  async function deleteSession(sessionId: string) {
+    try {
+      const confirmed = confirm('Delete this chat? This cannot be undone.');
+      if (!confirmed) return;
+
+      const resp = await fetch(`/api/chat-history?id=${encodeURIComponent(sessionId)}`, { method: 'DELETE' });
+      if (!resp.ok) {
+        console.error('Failed to delete chat session');
+        return;
+      }
+
+      chatSessions = chatSessions.filter((s) => s.id !== sessionId);
+      if (currentSession?.id === sessionId) {
+        currentSession = chatSessions.length > 0 ? chatSessions[0] : null;
+      }
+    } catch (err) {
+      console.error('Error deleting session:', err);
+    }
+  }
+
   async function sendMessage() {
     if (!newMessage.trim() || !currentSession || loading) return;
 
@@ -98,24 +114,15 @@
       let response: Response;
       const historyToSend = currentSession.messages.slice(0, -1);
 
-      if (attachedFile) {
-        const form = new FormData();
-        form.append('tags', JSON.stringify(currentSession?.tags || tags));
-        form.append('message', messageToSend);
-        form.append('history', JSON.stringify(historyToSend));
-        form.append('file', attachedFile);
-        response = await fetch('/api/chat', { method: 'POST', body: form });
-      } else {
-        response = await fetch('/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            tags: currentSession?.tags || tags,
-            message: messageToSend,
-            history: historyToSend
-          })
-        });
-      }
+      response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tags: currentSession?.tags || tags,
+          message: messageToSend,
+          history: historyToSend
+        })
+      });
 
       if (response.ok) {
         const result = await response.json();
@@ -130,9 +137,6 @@
 
         // Save updated session
         await saveSession();
-        // Clear attachment after successful send
-        attachedFile = null;
-        attachedFileError = null;
       } else {
         console.error('Failed to send message');
       }
@@ -141,20 +145,6 @@
     } finally {
       loading = false;
     }
-  }
-
-  function handleAttachFile(event: Event) {
-    attachedFileError = null;
-    const input = event.target as HTMLInputElement;
-    if (!input.files || input.files.length === 0) { attachedFile = null; return; }
-    const file = input.files[0];
-    if (file && file.type !== 'application/pdf') {
-      attachedFileError = 'Only PDF files are supported.';
-      attachedFile = null;
-      input.value = '';
-      return;
-    }
-    attachedFile = file;
   }
 
   async function saveSession() {
@@ -232,20 +222,40 @@
     <div class="sessions-list flex-grow-1 p-2" style="overflow-y: auto;">
       {#if chatSessions.length > 0}
         {#each chatSessions as session (session.id)}
-          <button 
-            class="session-item btn w-100 text-start mb-2 p-3"
-            class:btn-primary={currentSession?.id === session.id}
-            class:btn-outline-secondary={currentSession?.id !== session.id}
-            onclick={() => selectSession(session)}
-            aria-label={`Open chat session ${session.title}`}
-          >
-            <div class="sidebar-text">
-              <div class="fw-medium text-truncate">{session.title}</div>
-              <small class="text-muted">
-                {formatDate(session.updatedAt)} • {session.messages.length} messages
-              </small>
-            </div>
-          </button>
+          <div class="session-row position-relative mb-2">
+            <button 
+              class="session-item btn w-100 text-start p-3"
+              class:btn-primary={currentSession?.id === session.id}
+              class:btn-outline-secondary={currentSession?.id !== session.id}
+              onclick={() => selectSession(session)}
+              aria-label={`Open chat session ${session.title}`}
+            >
+              <div class="sidebar-text">
+                <div class="fw-medium text-truncate">{session.title}</div>
+                <small class="text-muted">
+                  {#if session.tags?.length}
+                    <span
+                      class="d-inline-block text-truncate align-middle"
+                      style="max-width: 160px; vertical-align: middle;"
+                      title={session.tags.join(', ')}
+                    >
+                      {session.tags.join(', ')}
+                    </span>
+                    •
+                  {/if}
+                  {formatDate(session.updatedAt)} • {session.messages.length} messages
+                </small>
+              </div>
+            </button>
+            <button
+              class="session-delete btn btn-outline-danger btn-sm position-absolute top-0 end-0 m-2"
+              title="Delete chat"
+              aria-label={`Delete chat session ${session.title}`}
+              onclick={() => deleteSession(session.id)}
+            >
+              <i class="bi bi-trash"></i>
+            </button>
+          </div>
         {/each}
       {:else}
         <div class="text-center p-4 sidebar-text">
@@ -331,18 +341,6 @@
               onkeypress={handleKeyPress}
               disabled={loading}
             ></textarea>
-            <div class="d-flex align-items-center gap-2 mt-2">
-              <label class="btn btn-outline-secondary btn-sm mb-0">
-                <input type="file" accept="application/pdf" onchange={handleAttachFile} style="display:none" />
-                <i class="bi bi-paperclip me-1"></i>Attach PDF
-              </label>
-              {#if attachedFile}
-                <small class="text-muted">{attachedFile.name}</small>
-              {/if}
-              {#if attachedFileError}
-                <small class="text-danger">{attachedFileError}</small>
-              {/if}
-            </div>
           </div>
           <div class="col-auto d-flex align-items-end">
             <button 
@@ -437,6 +435,20 @@
   
   .session-item:hover {
     transform: translateX(2px);
+  }
+  
+  .session-row {
+    /* create stacking context to ensure floating delete stays above */
+    isolation: isolate;
+  }
+  
+  .session-delete {
+    opacity: 0.85;
+    transition: opacity 0.15s ease;
+  }
+  
+  .session-row:hover .session-delete {
+    opacity: 1;
   }
   
   .messages-container {

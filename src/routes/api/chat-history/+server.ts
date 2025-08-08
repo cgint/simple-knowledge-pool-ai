@@ -1,6 +1,6 @@
 import type { RequestEvent } from '@sveltejs/kit';
 import { json } from '@sveltejs/kit';
-import { readFile, writeFile, mkdir } from 'fs/promises';
+import { readFile, writeFile, mkdir, unlink } from 'fs/promises';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -124,3 +124,20 @@ export async function PUT({ request }: RequestEvent) {
     return json({ error: 'Failed to update chat session' }, { status: 500 });
   }
 } 
+
+// DELETE /api/chat-history?id=<sessionId> - Delete a chat session
+export async function DELETE({ url }: RequestEvent) {
+  const id = url.searchParams.get('id');
+  if (!id) {
+    return json({ error: 'Session ID is required' }, { status: 400 });
+  }
+
+  try {
+    const filePath = path.join(chatHistoryDir, `${id}.json`);
+    await unlink(filePath);
+    return json({ success: true });
+  } catch (error) {
+    console.error('Failed to delete chat session:', error);
+    return json({ error: 'Failed to delete chat session' }, { status: 500 });
+  }
+}
