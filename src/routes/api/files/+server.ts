@@ -14,7 +14,8 @@ if (!fs.existsSync(uploadDir)) {
 export async function GET() {
   try {
     const files = await readdir(uploadDir);
-    return json(files);
+    const pdfFiles = files.filter(file => file.toLowerCase().endsWith('.pdf'));
+    return json(pdfFiles);
   } catch (error) {
     console.error('Error reading upload directory:', error);
     // If the directory doesn't exist, return an empty array

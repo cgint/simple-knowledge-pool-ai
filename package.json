@@ -11,7 +11,9 @@
     "test": "vitest",
     "p": "sh precommit.sh",
     "pdev": "npm run p && npm run dev",
-    "pprev": "npm run p && npm run preview"
+    "pprev": "npm run p && npm run preview",
+    "convert:mht": "node scripts/convert-mht-to-pdf.mjs",
+    "convert:mht:aspose": "node scripts/convert-mht-with-aspose.mjs"
   },
   "devDependencies": {
     "@sveltejs/adapter-auto": "^6.0.1",
@@ -33,6 +35,7 @@
   "dependencies": {
     "@google/generative-ai": "0.*",
     "eslint-plugin-unused-imports": "^4.1.4",
+    "html-pdf": "^3.0.1",
     "mhtml-to-html": "^2.0.0",
     "uuid": "^11.1.0",
     "wkhtmltopdf": "^0.4.0"

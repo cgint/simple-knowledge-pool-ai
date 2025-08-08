@@ -14,6 +14,8 @@ if (!fs.existsSync(uploadDir)) {
 import { convert as convertMhtmlToHtml } from 'mhtml-to-html';
 // HTML -> PDF rendering (no browser)
 import wkhtmltopdf from 'wkhtmltopdf';
+import pdf from 'html-pdf';
+import { execFile } from 'child_process';
 
 export async function POST(event: RequestEvent) {
   try {
@@ -38,18 +40,57 @@ export async function POST(event: RequestEvent) {
       const isMht = lowerName.endsWith('.mht') || lowerName.endsWith('.mhtml');
       if (isMht) {
         try {
-          const htmlString = await convertMhtmlToHtml(buffer);
+          let htmlString: string | undefined;
+          try {
+            let htmlOut: unknown = await convertMhtmlToHtml(buffer);
+            if (typeof htmlOut !== 'string') {
+              if (htmlOut instanceof Uint8Array) {
+                htmlOut = new TextDecoder().decode(htmlOut);
+              } else if (htmlOut && typeof (htmlOut as any).html === 'string') {
+                htmlOut = (htmlOut as any).html as string;
+              } else if (htmlOut && typeof (htmlOut as any).toString === 'function') {
+                htmlOut = (htmlOut as any).toString();
+              } else {
+                htmlOut = String(htmlOut);
+              }
+            }
+            if (typeof htmlOut === 'string' && htmlOut.trim() && htmlOut !== '[object Object]') {
+              htmlString = htmlOut;
+            } else {
+              throw new Error('Invalid HTML output');
+            }
+          } catch {
+            // Fallback to CLI converter into a temp file
+            const tmpHtml = path.join(uploadDir, lowerName.replace(/\.(mht|mhtml)$/i, '.html'));
+            await new Promise<void>((resolve, reject) => {
+              const bin = path.join(process.cwd(), 'node_modules', '.bin', 'mhtml-to-html');
+              execFile(bin, [filePath, '--output', tmpHtml], (err) => (err ? reject(err) : resolve()));
+            });
+            htmlString = fs.readFileSync(tmpHtml, 'utf8');
+          }
           const pdfBasename = lowerName.replace(/\.(mht|mhtml)$/i, '.pdf');
           const pdfPath = path.join(uploadDir, pdfBasename);
 
-          await new Promise<void>((resolve, reject) => {
-            const out = fs.createWriteStream(pdfPath);
-            wkhtmltopdf(htmlString, { pageSize: 'A4' })
-              .on('error', reject)
-              .pipe(out)
-              .on('finish', () => resolve())
-              .on('error', reject);
-          });
+          // Try wkhtmltopdf first (if installed), else fall back to html-pdf
+          try {
+            await new Promise<void>((resolve, reject) => {
+              const out = fs.createWriteStream(pdfPath);
+              wkhtmltopdf(htmlString, { pageSize: 'A4' })
+                .on('error', reject)
+                .pipe(out)
+                .on('finish', () => resolve())
+                .on('error', reject);
+            });
+            const s = fs.statSync(pdfPath);
+            if (!s.size) throw new Error('wkhtmltopdf produced zero bytes');
+          } catch (wkErr) {
+            await new Promise<void>((resolve, reject) => {
+              pdf.create(htmlString, { format: 'A4' }).toFile(pdfPath, (err) => {
+                if (err) return reject(err);
+                resolve();
+              });
+            });
+          }
 
           generatedPdfNames.push(pdfBasename);
         } catch (convErr) {
