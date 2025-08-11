@@ -2,6 +2,8 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
+  import { marked } from 'marked';
+  import sanitizeHtml from 'sanitize-html';
 
   // Pools removed; using tags instead
 
@@ -29,6 +31,34 @@
   let sessionLoading = $state(false);
   let sidebarCollapsed = $state(false);
   let selectedFile = $state<string | null>(null);
+
+  // Markdown -> Safe HTML
+  marked.setOptions({ breaks: true, gfm: true });
+  function renderMarkdownToSafeHtml(input: string): string {
+    try {
+      const rawHtml = marked.parse(input ?? '') as string;
+      return sanitizeHtml(rawHtml, {
+        allowedTags: [
+          'p','br','div','span','strong','b','em','i','u','s','blockquote','code','pre','kbd','samp','hr',
+          'h1','h2','h3','h4','h5','h6',
+          'ul','ol','li','dl','dt','dd',
+          'a','img',
+          'table','thead','tbody','tr','th','td'
+        ],
+        allowedAttributes: {
+          a: ['href','name','target','rel'],
+          img: ['src','alt','title'],
+          '*': ['title']
+        },
+        allowedSchemes: ['http','https','mailto'],
+        transformTags: {
+          a: sanitizeHtml.simpleTransform('a', { rel: 'noopener noreferrer', target: '_blank' })
+        }
+      });
+    } catch {
+      return input ?? '';
+    }
+  }
 
   $effect(() => {
     // Determine mode from route param: file:<name> or tag:<name>
@@ -362,7 +392,7 @@
             <div class="message-wrapper mb-4" class:text-end={message.role === 'user'}>
               <div class="message d-inline-block" class:user-message={message.role === 'user'}>
                 <div class="message-content p-3 rounded-3 shadow-sm">
-                  {message.content}
+                  {@html renderMarkdownToSafeHtml(message.content)}
                 </div>
                 <small class="message-time text-muted d-block mt-1">
                   {formatTime(message.timestamp)}
@@ -499,7 +529,7 @@
     background: #f8f9fa;
     border: 1px solid #e9ecef;
     line-height: 1.5;
-    white-space: pre-wrap;
+    white-space: normal;
     word-wrap: break-word;
   }
   
