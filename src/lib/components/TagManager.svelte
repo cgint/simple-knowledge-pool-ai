@@ -333,11 +333,11 @@
                 <i class="bi bi-trash"></i>
               </button>
 
-              <div style="width: 28px;">
-                {#if savingFor === file}
+              {#if savingFor === file}
+                <div style="width: 28px;">
                   <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                {/if}
-              </div>
+                </div>
+              {/if}
             </div>
           </div>
 
