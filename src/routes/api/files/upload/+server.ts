@@ -109,14 +109,41 @@ export async function POST(event: RequestEvent) {
             } else {
               throw new Error('Invalid HTML output');
             }
-          } catch {
+          } catch (htmlErr) {
+            console.error('=== HTML conversion (library) failed, trying CLI fallback ===');
+            console.error('File:', {
+              originalName: file.name,
+              sanitizedName: sanitizedFileName,
+              size: buffer.length,
+              path: filePath
+            });
+            console.error('HTML conversion error:', {
+              message: htmlErr instanceof Error ? htmlErr.message : String(htmlErr),
+              stack: htmlErr instanceof Error ? htmlErr.stack : undefined,
+              type: typeof htmlErr
+            });
+            
             // Fallback to CLI converter into a temp file
             const tmpHtml = path.join(uploadDir, sanitizedFileName.replace(/\.(mht|mhtml)$/i, '.html'));
-            await new Promise<void>((resolve, reject) => {
-              const bin = path.join(process.cwd(), 'node_modules', '.bin', 'mhtml-to-html');
-              execFile(bin, [filePath, '--output', tmpHtml], (err) => (err ? reject(err) : resolve()));
-            });
-            htmlString = fs.readFileSync(tmpHtml, 'utf8');
+            try {
+              await new Promise<void>((resolve, reject) => {
+                const bin = path.join(process.cwd(), 'node_modules', '.bin', 'mhtml-to-html');
+                execFile(bin, [filePath, '--output', tmpHtml], (err) => (err ? reject(err) : resolve()));
+              });
+              htmlString = fs.readFileSync(tmpHtml, 'utf8');
+              console.log('=== CLI fallback HTML conversion succeeded ===');
+              console.log('Source file:', file.name);
+              console.log('Temp HTML file:', tmpHtml);
+              console.log('HTML content length:', htmlString.length, 'characters');
+            } catch (cliErr) {
+              console.error('CLI fallback also failed:', {
+                message: cliErr instanceof Error ? cliErr.message : String(cliErr),
+                stack: cliErr instanceof Error ? cliErr.stack : undefined,
+                binPath: path.join(process.cwd(), 'node_modules', '.bin', 'mhtml-to-html'),
+                tmpHtmlPath: tmpHtml
+              });
+              throw cliErr; // Re-throw to trigger outer catch
+            }
           }
           const pdfBasename = sanitizedFileName.replace(/\.(mht|mhtml)$/i, '.pdf');
           const pdfPath = path.join(uploadDir, pdfBasename);
@@ -134,6 +161,12 @@ export async function POST(event: RequestEvent) {
             const s = fs.statSync(pdfPath);
             if (!s.size) throw new Error('wkhtmltopdf produced zero bytes');
 
+            console.log('=== PDF conversion successful ===');
+            console.log('Source file:', file.name);
+            console.log('Generated PDF:', pdfBasename);
+            console.log('PDF size:', s.size, 'bytes');
+            console.log('HTML content length:', htmlString?.length || 0, 'characters');
+
             generatedPdfNames.push(pdfBasename);
 
             // Save metadata for the generated PDF
@@ -144,11 +177,47 @@ export async function POST(event: RequestEvent) {
             });
 
           } catch (wkErr) {
-            console.error('wkhtmltopdf conversion failed for', file.name, wkErr);
+            console.error('=== wkhtmltopdf PDF conversion failed ===');
+            console.error('File:', {
+              originalName: file.name,
+              sanitizedName: sanitizedFileName,
+              size: buffer.length,
+              path: filePath
+            });
+            console.error('Target PDF path:', pdfPath);
+            console.error('HTML content length:', htmlString?.length || 0);
+            console.error('Error details:', {
+              message: wkErr instanceof Error ? wkErr.message : String(wkErr),
+              stack: wkErr instanceof Error ? wkErr.stack : undefined,
+              type: typeof wkErr,
+              errorCode: (wkErr as any)?.code,
+              errno: (wkErr as any)?.errno,
+              syscall: (wkErr as any)?.syscall
+            });
+            console.error('================================================');
             // Continue processing other files even if one conversion fails
           }
         } catch (convErr) {
-          console.error('MHT to PDF conversion failed for', file.name, convErr);
+          console.error('=== Overall MHT to PDF conversion failed ===');
+          console.error('File:', {
+            originalName: file.name,
+            sanitizedName: sanitizedFileName,
+            size: buffer.length,
+            path: filePath,
+            isMht: isMht,
+            lowerName: lowerName
+          });
+          console.error('Conversion process failed at top level:', {
+            message: convErr instanceof Error ? convErr.message : String(convErr),
+            stack: convErr instanceof Error ? convErr.stack : undefined,
+            type: typeof convErr,
+            errorCode: (convErr as any)?.code,
+            errno: (convErr as any)?.errno,
+            syscall: (convErr as any)?.syscall
+          });
+          console.error('Upload directory:', uploadDir);
+          console.error('Expected PDF path would have been:', path.join(uploadDir, sanitizedFileName.replace(/\.(mht|mhtml)$/i, '.pdf')));
+          console.error('================================================');
           // Continue processing other files even if one conversion fails
         }
       }
@@ -163,7 +232,22 @@ export async function POST(event: RequestEvent) {
       { status: 200 }
     );
   } catch (error) {
-    console.error('File upload error:', error);
+    console.error('=== File upload process failed ===');
+    console.error('Upload directory:', uploadDir);
+    console.error('Request details:', {
+      method: event.request.method,
+      url: event.request.url,
+      headers: Object.fromEntries(event.request.headers.entries())
+    });
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      type: typeof error,
+      errorCode: (error as any)?.code,
+      errno: (error as any)?.errno,
+      syscall: (error as any)?.syscall
+    });
+    console.error('================================================');
     return json({ message: 'An unexpected error occurred during file upload.' }, { status: 500 });
   }
 }
