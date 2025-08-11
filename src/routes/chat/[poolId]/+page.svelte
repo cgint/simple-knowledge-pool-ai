@@ -31,6 +31,8 @@
   let sessionLoading = $state(false);
   let sidebarCollapsed = $state(false);
   let selectedFile = $state<string | null>(null);
+  let copiedMessageKeys = $state<Set<string>>(new Set());
+  let copiedAll = $state(false);
 
   // Markdown -> Safe HTML
   marked.setOptions({ breaks: true, gfm: true });
@@ -259,6 +261,59 @@
       goto('/');
     }
   }
+
+  function makeMsgKey(message: ChatMessage): string {
+    return `${message.role}:${message.timestamp}`;
+  }
+
+  async function copyTextToClipboard(text: string): Promise<boolean> {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch {}
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async function copyMessageMarkdown(message: ChatMessage) {
+    const ok = await copyTextToClipboard(message.content ?? '');
+    if (!ok) return;
+    const key = makeMsgKey(message);
+    copiedMessageKeys = new Set([...copiedMessageKeys, key]);
+    setTimeout(() => {
+      const next = new Set(copiedMessageKeys);
+      next.delete(key);
+      copiedMessageKeys = next;
+    }, 1500);
+  }
+
+  function buildConversationMarkdown(session: ChatSession): string {
+    return (session.messages || [])
+      .map((m) => `**${m.role === 'user' ? 'User' : 'Assistant'}**\n\n${m.content}\n`)
+      .join('\n---\n\n');
+  }
+
+  async function copyFullConversation() {
+    if (!currentSession) return;
+    const text = buildConversationMarkdown(currentSession);
+    const ok = await copyTextToClipboard(text);
+    if (!ok) return;
+    copiedAll = true;
+    setTimeout(() => { copiedAll = false; }, 1500);
+  }
 </script>
 
 <svelte:window on:keydown={handleGlobalKeyDown} />
@@ -365,7 +420,6 @@
             title="Back to overview (Esc)"
           >
             <i class="bi bi-arrow-left"></i>
-            <span class="d-none d-sm-inline ms-1">Overview</span>
           </a>
           <button 
             class="btn btn-outline-secondary btn-sm me-3 d-lg-none"
@@ -384,6 +438,16 @@
               {/if}
             </small>
           </div>
+          <div class="ms-auto d-flex align-items-center">
+            <button
+              class="btn btn-outline-primary btn-sm"
+              title={copiedAll ? 'Copied!' : 'Copy full chat as Markdown'}
+              aria-label="Copy full chat as Markdown"
+              onclick={copyFullConversation}
+            >
+              <i class={copiedAll ? 'bi bi-clipboard-check' : 'bi bi-clipboard'}></i>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -396,9 +460,19 @@
                 <div class="message-content p-3 rounded-3 shadow-sm">
                   {@html renderMarkdownToSafeHtml(message.content)}
                 </div>
-                <small class="message-time text-muted d-block mt-1">
-                  {formatTime(message.timestamp)}
-                </small>
+                <div class="d-flex align-items-center gap-2 mt-1">
+                  <small class="message-time text-muted">
+                    {formatTime(message.timestamp)}
+                  </small>
+                  <button
+                    class="btn btn-outline-secondary btn-sm py-0 px-2"
+                    title={copiedMessageKeys.has(makeMsgKey(message)) ? 'Copied!' : 'Copy message as Markdown'}
+                    aria-label="Copy message as Markdown"
+                    onclick={() => copyMessageMarkdown(message)}
+                  >
+                    <i class={copiedMessageKeys.has(makeMsgKey(message)) ? 'bi bi-clipboard-check' : 'bi bi-clipboard'}></i>
+                  </button>
+                </div>
               </div>
             </div>
           {/each}
