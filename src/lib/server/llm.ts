@@ -40,7 +40,7 @@ export async function callLLM(
   fileParts?: InlineFilePart[]
 ): Promise<LLMResponse> {
   if (!GEMINI_API_KEY) {
-    throw new Error('VITE_GEMINI_API_KEY environment variable is not set');
+    throw new Error('GEMINI_API_KEY environment variable is not set');
   }
 
   const model = config?.model || DEFAULT_MODEL;
