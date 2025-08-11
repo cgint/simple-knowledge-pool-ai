@@ -14,7 +14,6 @@ if (!fs.existsSync(uploadDir)) {
 import { convert as convertMhtmlToHtml } from 'mhtml-to-html';
 // HTML -> PDF rendering (no browser)
 import wkhtmltopdf from 'wkhtmltopdf';
-import pdf from 'html-pdf';
 import { execFile } from 'child_process';
 
 export async function POST(event: RequestEvent) {
@@ -71,7 +70,7 @@ export async function POST(event: RequestEvent) {
           const pdfBasename = lowerName.replace(/\.(mht|mhtml)$/i, '.pdf');
           const pdfPath = path.join(uploadDir, pdfBasename);
 
-          // Try wkhtmltopdf first (if installed), else fall back to html-pdf
+          // Generate PDF using wkhtmltopdf (installed in the Docker image)
           try {
             await new Promise<void>((resolve, reject) => {
               const out = fs.createWriteStream(pdfPath);
@@ -84,12 +83,8 @@ export async function POST(event: RequestEvent) {
             const s = fs.statSync(pdfPath);
             if (!s.size) throw new Error('wkhtmltopdf produced zero bytes');
           } catch (wkErr) {
-            await new Promise<void>((resolve, reject) => {
-              pdf.create(htmlString, { format: 'A4' }).toFile(pdfPath, (err: unknown) => {
-                if (err) return reject(err);
-                resolve();
-              });
-            });
+            // Rethrow so the outer catch logs the failure; no PhantomJS/html-pdf fallback anymore
+            throw wkErr;
           }
 
           generatedPdfNames.push(pdfBasename);

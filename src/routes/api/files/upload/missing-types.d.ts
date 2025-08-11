@@ -8,18 +8,4 @@ declare module 'wkhtmltopdf' {
   export default wkhtmltopdf;
 }
 
-declare module 'html-pdf' {
-  interface CreateOptions {
-    format?: string;
-    [key: string]: unknown;
-  }
-  interface Pdf {
-    toFile(path: string, cb: (err: unknown, res?: unknown) => void): void;
-  }
-  const pdf: {
-    create(html: string, options?: CreateOptions): Pdf;
-  };
-  export default pdf;
-}
-
 

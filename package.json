@@ -37,7 +37,6 @@
   "dependencies": {
     "@google/generative-ai": "0.*",
     "eslint-plugin-unused-imports": "^4.1.4",
-    "html-pdf": "^3.0.1",
     "marked": "^12.0.2",
     "mhtml-to-html": "^2.0.0",
     "sanitize-html": "^2.13.0",
