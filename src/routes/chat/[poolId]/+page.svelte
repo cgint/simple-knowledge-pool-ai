@@ -134,7 +134,7 @@
     // Try to find existing session for this file
     const existing = chatSessions.find((s) => s.file === fileName);
     if (existing) {
-      currentSession = existing;
+      goto(`/chat/${existing.id}`);
       return;
     }
     // Create one if not exists
@@ -157,7 +157,8 @@
       if (response.ok) {
         const newSession = await response.json();
         chatSessions = [newSession, ...chatSessions];
-        currentSession = newSession;
+        // Navigate to the new session to update the URL
+        goto(`/chat/${newSession.id}`);
       }
     } catch (error) {
       console.error('Failed to create new session:', error);
@@ -167,7 +168,8 @@
   }
 
   async function selectSession(session: ChatSession) {
-    currentSession = session;
+    // Navigate to the session URL to update the browser address bar
+    goto(`/chat/${session.id}`);
   }
 
   async function deleteSession(sessionId: string) {
@@ -183,7 +185,12 @@
 
       chatSessions = chatSessions.filter((s) => s.id !== sessionId);
       if (currentSession?.id === sessionId) {
-        currentSession = chatSessions.length > 0 ? chatSessions[0] : null;
+        // Navigate to another session or back to home
+        if (chatSessions.length > 0) {
+          goto(`/chat/${chatSessions[0].id}`);
+        } else {
+          goto('/');
+        }
       }
     } catch (err) {
       console.error('Error deleting session:', err);
