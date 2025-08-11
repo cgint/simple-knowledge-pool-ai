@@ -229,24 +229,6 @@ For text files: The content is provided directly in this prompt.`;
 }
 
 /**
- * Configuration for different LLM providers
- */
-export const LLM_CONFIGS = {
-  gemini: {
-    model: 'gemini-2.5-flash',
-    maxTokens: 1000000
-  },
-  openai: {
-    model: 'gpt-4',
-    maxTokens: 4096
-  },
-  anthropic: {
-    model: 'claude-3-sonnet-20240229',
-    maxTokens: 4096
-  }
-} as const;
-
-/**
  * Estimate token count (rough approximation)
  */
 export function estimateTokens(text: string): number {

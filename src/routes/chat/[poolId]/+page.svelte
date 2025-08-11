@@ -50,7 +50,8 @@
       tags = t ? [t] : [];
       selectedFile = null;
       routeHandled = true;
-      loadChatSessions(true);
+      // Always show all sessions in sidebar
+      loadChatSessions(false);
     }
 
     if (!routeHandled) {
@@ -60,7 +61,8 @@
         try { const parsed = JSON.parse(tagsParam); if (Array.isArray(parsed)) tags = parsed as string[]; } catch {}
       }
       selectedFile = null;
-      loadChatSessions(true);
+      // Always show all sessions in sidebar
+      loadChatSessions(false);
     }
   });
 
@@ -164,7 +166,7 @@
           tags: currentSession?.tags || tags,
           message: messageToSend,
           history: historyToSend,
-          file: currentSession?.file
+          files: currentSession?.file ? [currentSession.file] : []
         })
       });
 
