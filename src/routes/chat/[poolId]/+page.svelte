@@ -543,7 +543,6 @@
             title="Back to overview (Esc)"
           >
             <i class="bi bi-arrow-left"></i>
-            <span class="d-none d-sm-inline ms-1">Overview</span>
           </a>
           <div>
             <h4 class="mb-0 text-primary">Chat</h4>
