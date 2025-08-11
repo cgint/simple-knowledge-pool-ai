@@ -42,6 +42,8 @@ USER node
 ENV NODE_ENV=production
 ARG PORT
 ENV PORT=${PORT:-3000}
+# Set body size limit to 100MB for file uploads
+ENV BODY_SIZE_LIMIT=104857600
 EXPOSE ${PORT}
 
 # Start SvelteKit adapter-node server
