@@ -1,4 +1,4 @@
-export const GEMINI_API_KEY: string = import.meta.env.GEMINI_API_KEY;
+export const GEMINI_API_KEY: string = process.env.GEMINI_API_KEY || '';
 export const AI_RETRY_MAX_ATTEMPTS: number = 1;
 export const AI_TIMEOUT_MS: number = 30000;
 
