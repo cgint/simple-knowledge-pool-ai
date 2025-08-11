@@ -19,7 +19,8 @@ interface ChatSession {
   messages: ChatMessage[];
   createdAt: number;
   updatedAt: number;
-  file?: string;
+  file?: string; // Kept for backward compatibility
+  files?: string[]; // New field for explicitly storing resolved files
 }
 
 async function ensureChatHistoryDir() {
@@ -90,7 +91,7 @@ export async function GET({ url }: RequestEvent) {
 // POST /api/chat-history - Create new chat session
 export async function POST({ request }: RequestEvent) {
   try {
-    const { tags, title, file } = await request.json();
+    const { tags, title, file, files } = await request.json();
     const session: ChatSession = {
       id: uuidv4(),
       tags: Array.isArray(tags) ? tags : [],
@@ -98,7 +99,8 @@ export async function POST({ request }: RequestEvent) {
       messages: [],
       createdAt: Date.now(),
       updatedAt: Date.now(),
-      file: typeof file === 'string' ? file : undefined
+      file: typeof file === 'string' ? file : undefined,
+      files: Array.isArray(files) ? files.filter((f): f is string => typeof f === 'string') : undefined
     };
 
     await saveChatSession(session);

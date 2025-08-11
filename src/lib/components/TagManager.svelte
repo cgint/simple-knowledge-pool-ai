@@ -274,7 +274,7 @@
         <span class="text-muted small">Chat with tag:</span>
         {#each globalTagSuggestions as t}
           {@const fileCount = Object.values(fileToTags).filter(tags => tags?.includes(t)).length}
-          <a class="btn btn-sm btn-primary" href={`/chat/tag:${encodeURIComponent(t)}`}>
+          <a class="btn btn-sm btn-primary" href={`/chat/new?tags=${encodeURIComponent(JSON.stringify([t]))}&title=${encodeURIComponent(`Chat about: ${t}`)}`}>
             <i class="bi bi-chat-dots me-1"></i>{t} ({fileCount})
           </a>
         {/each}
@@ -322,7 +322,7 @@
                 </button>
               {/if}
 
-              <a class="btn btn-sm btn-primary" href={`/chat/file:${encodeURIComponent(file)}`} title="Chat with file" aria-label="Chat with file"><i class="bi bi-chat-dots me-1"></i></a>
+              <a class="btn btn-sm btn-primary" href={`/chat/new?files=${encodeURIComponent(JSON.stringify([file]))}&title=${encodeURIComponent(`Chat about: ${file}`)}`} title="Chat with file" aria-label="Chat with file"><i class="bi bi-chat-dots me-1"></i></a>
 
               <button 
                 class="btn btn-sm btn-outline-danger"

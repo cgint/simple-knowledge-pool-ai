@@ -20,7 +20,8 @@
     messages: ChatMessage[];
     createdAt: number;
     updatedAt: number;
-    file?: string;
+    file?: string; // Kept for backward compatibility
+    files?: string[]; // New field for explicitly storing resolved files
   }
 
   let tags = $state<string[]>([]);
@@ -63,7 +64,7 @@
   }
 
   $effect(() => {
-    // Determine mode from route param: file:<name> or tag:<name>
+    // Determine mode from route param: direct session ID, file:<name>, or tag:<name>
     const poolId = $page.params.poolId || '';
     selectedFile = null;
     let routeHandled = false;
@@ -85,6 +86,21 @@
       // Auto-create a new session for this tag after loading sessions
       loadChatSessions(false).then(() => {
         createNewSession();
+      });
+    } else if (poolId && poolId.length > 0) {
+      // Direct session ID - load all sessions and find the specific one
+      routeHandled = true;
+      loadChatSessions(false).then(() => {
+        const session = chatSessions.find(s => s.id === poolId);
+        if (session) {
+          currentSession = session;
+          // Extract tags and files from the session
+          tags = session.tags || [];
+          selectedFile = session.file || null;
+        } else {
+          // Session not found, redirect to home
+          goto('/');
+        }
       });
     }
 
@@ -193,6 +209,9 @@
       let response: Response;
       const historyToSend = currentSession.messages.slice(0, -1);
 
+      // Use the new files field or fallback to legacy file field
+      const sessionFiles = currentSession?.files || (currentSession?.file ? [currentSession.file] : []);
+      
       response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -200,7 +219,7 @@
           tags: currentSession?.tags || tags,
           message: messageToSend,
           history: historyToSend,
-          files: currentSession?.file ? [currentSession.file] : []
+          files: sessionFiles
         })
       });
 
@@ -431,7 +450,9 @@
           <div>
             <h4 class="mb-0 text-primary">{currentSession.title}</h4>
             <small class="text-muted">
-              {#if currentSession.file}
+              {#if currentSession.files?.length}
+                {`Files: ${currentSession.files.join(', ')}`} • {currentSession.messages.length} messages
+              {:else if currentSession.file}
                 {`File: ${currentSession.file}`} • {currentSession.messages.length} messages
               {:else}
                 {currentSession.tags?.length ? `Tags: ${currentSession.tags.join(', ')}` : 'No tags'} • {currentSession.messages.length} messages
