@@ -90,13 +90,13 @@ async function makeGeminiCall(
   contents.push({ role: 'user', parts });
 
 
-  const disabledThinking = { maxThinkingTokens: 0 }
+  const disabledThinking = { thinkingBudget: 0 }
 
   const requestBody = {
     contents: contents,
     generationConfig: {
       temperature: 0.3,
-      maxOutputTokens: 8192,
+      // maxOutputTokens: 8192,
       thinkingConfig: disabledThinking
     },
   };
@@ -116,6 +116,8 @@ async function makeCallWithRetry(endpoint: string, requestBody: any): Promise<LL
         setTimeout(() => reject(new Error('Request timeout')), AI_TIMEOUT_MS)
       );
 
+      console.log('endpoint', endpoint.slice(0, -10));
+
       const apiCall = fetch(endpoint, {
         method: 'POST',
         headers: {
@@ -127,7 +129,37 @@ async function makeCallWithRetry(endpoint: string, requestBody: any): Promise<LL
       const response = await Promise.race([apiCall, timeoutPromise]);
       
       if (!response.ok) {
-        throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
+        const contentType = response.headers.get('content-type') || '';
+        let rawBody = '';
+        try {
+          rawBody = await (response as Response).text();
+        } catch {
+          // ignore
+        }
+        let parsed: any | null = null;
+        try {
+          parsed = rawBody ? JSON.parse(rawBody) : null;
+        } catch {
+          // ignore JSON parse errors; keep raw body
+        }
+        const googleError = parsed?.error ?? parsed ?? {};
+        const extractedStatus = typeof googleError?.status === 'string' ? googleError.status : '';
+        const extractedMessage = typeof googleError?.message === 'string' ? googleError.message : '';
+        const details = Array.isArray(googleError?.details) ? googleError.details : undefined;
+        const detailHint = details ? JSON.stringify(details).slice(0, 1000) : undefined;
+        const redactedEndpoint = endpoint.replace(/key=[^&]+/g, 'key=***');
+        const bodyPreview = `${extractedStatus ? extractedStatus + ' ' : ''}${extractedMessage || rawBody}`.slice(0, 2000);
+
+        console.error('Gemini API error', {
+          status: response.status,
+          statusText: response.statusText,
+          contentType,
+          endpoint: redactedEndpoint,
+          message: bodyPreview,
+          details: detailHint
+        });
+
+        throw new Error(`Gemini API error: ${response.status} ${response.statusText}: ${bodyPreview}`);
       }
       
       const result = await response.json();
