@@ -319,13 +319,10 @@
                   {:else}
                     <i class="bi bi-file-text me-1"></i>
                   {/if}
-                  Extracts
                 </button>
               {/if}
 
-              <a class="btn btn-sm btn-primary" href={`/chat/file:${encodeURIComponent(file)}`}>
-                <i class="bi bi-chat-dots me-1"></i> Chat
-              </a>
+              <a class="btn btn-sm btn-primary" href={`/chat/file:${encodeURIComponent(file)}`} title="Chat with file" aria-label="Chat with file"><i class="bi bi-chat-dots me-1"></i></a>
 
               <button 
                 class="btn btn-sm btn-outline-danger"
