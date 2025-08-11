@@ -11,12 +11,14 @@ export interface ChatSession {
   messages: ChatMessage[];
   createdAt: number;
   updatedAt: number;
+  file?: string;
 }
 
 export interface ChatRequest {
   tags: string[];
   message: string;
   history: ChatMessage[];
+  file?: string;
 }
 
 export interface ChatResponse {

@@ -18,6 +18,7 @@
     messages: ChatMessage[];
     createdAt: number;
     updatedAt: number;
+    file?: string;
   }
 
   let tags = $state<string[]>([]);
@@ -27,21 +28,48 @@
   let loading = $state(false);
   let sessionLoading = $state(false);
   let sidebarCollapsed = $state(false);
+  let selectedFile = $state<string | null>(null);
 
   $effect(() => {
-    // Parse tags from query string
-    const tagsParam = $page.url.searchParams.get('tags');
-    if (tagsParam) {
-      try { const parsed = JSON.parse(tagsParam); if (Array.isArray(parsed)) tags = parsed as string[]; } catch {}
+    // Determine mode from route param: file:<name> or tag:<name>
+    const poolId = $page.params.poolId || '';
+    selectedFile = null;
+    let routeHandled = false;
+
+    if (poolId.startsWith('file:')) {
+      const fname = decodeURIComponent(poolId.slice('file:'.length));
+      selectedFile = fname || null;
+      tags = [];
+      routeHandled = true;
+      // Load all sessions (no tag filtering) and ensure file session
+      loadChatSessions(false).then(() => {
+        if (selectedFile) ensureFileSession(selectedFile);
+      });
+    } else if (poolId.startsWith('tag:')) {
+      const t = decodeURIComponent(poolId.slice('tag:'.length));
+      tags = t ? [t] : [];
+      selectedFile = null;
+      routeHandled = true;
+      loadChatSessions(true);
     }
-    loadChatSessions();
+
+    if (!routeHandled) {
+      // Fallback: parse tags from query string
+      const tagsParam = $page.url.searchParams.get('tags');
+      if (tagsParam) {
+        try { const parsed = JSON.parse(tagsParam); if (Array.isArray(parsed)) tags = parsed as string[]; } catch {}
+      }
+      selectedFile = null;
+      loadChatSessions(true);
+    }
   });
 
   // Removed loadPool; tags drive context
 
-  async function loadChatSessions() {
+  async function loadChatSessions(filterByTags: boolean = true) {
     try {
-      const response = await fetch(`/api/chat-history${tags.length ? `?tags=${encodeURIComponent(JSON.stringify(tags))}` : ''}`);
+      const useTagFilter = filterByTags && tags.length > 0;
+      const response = await fetch(`/api/chat-history${useTagFilter ? `?tags=${encodeURIComponent(JSON.stringify(tags))}` : ''}`);
       if (response.ok) {
         chatSessions = await response.json();
       }
@@ -50,13 +78,28 @@
     }
   }
 
-  async function createNewSession() {
+  async function ensureFileSession(fileName: string) {
+    // Try to find existing session for this file
+    const existing = chatSessions.find((s) => s.file === fileName);
+    if (existing) {
+      currentSession = existing;
+      return;
+    }
+    // Create one if not exists
+    await createNewSession({ file: fileName, titleOverride: `Chat about: ${fileName}` });
+  }
+
+  async function createNewSession(options?: { file?: string; titleOverride?: string }) {
     sessionLoading = true;
     try {
       const response = await fetch('/api/chat-history', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tags, title: tags.length ? `Chat about tags: ${tags.join(', ')}` : 'General Chat' })
+        body: JSON.stringify({ 
+          tags, 
+          title: options?.titleOverride ?? (tags.length ? `Chat about tags: ${tags.join(', ')}` : 'General Chat'),
+          file: options?.file
+        })
       });
 
       if (response.ok) {
@@ -120,7 +163,8 @@
         body: JSON.stringify({
           tags: currentSession?.tags || tags,
           message: messageToSend,
-          history: historyToSend
+          history: historyToSend,
+          file: currentSession?.file
         })
       });
 
@@ -175,7 +219,15 @@
       sendMessage();
     }
   }
+
+  function handleGlobalKeyDown(event: KeyboardEvent) {
+    if (event.key === 'Escape') {
+      goto('/');
+    }
+  }
 </script>
+
+<svelte:window on:keydown={handleGlobalKeyDown} />
 
 <svelte:head>
   <title>Chat</title>
@@ -203,7 +255,7 @@
       <div class="mt-2 sidebar-text">
         <button 
           class="btn btn-light btn-sm w-100"
-          onclick={createNewSession}
+          onclick={() => createNewSession()}
           disabled={sessionLoading}
         >
           {#if sessionLoading}
@@ -272,6 +324,15 @@
       <!-- Chat Header -->
       <div class="chat-header p-3 bg-white border-bottom shadow-sm">
         <div class="d-flex align-items-center">
+          <a 
+            href="/" 
+            class="btn btn-outline-secondary btn-sm me-3"
+            aria-label="Back to overview"
+            title="Back to overview (Esc)"
+          >
+            <i class="bi bi-arrow-left"></i>
+            <span class="d-none d-sm-inline ms-1">Overview</span>
+          </a>
           <button 
             class="btn btn-outline-secondary btn-sm me-3 d-lg-none"
             onclick={() => sidebarCollapsed = !sidebarCollapsed}
@@ -282,7 +343,11 @@
           <div>
             <h4 class="mb-0 text-primary">{currentSession.title}</h4>
             <small class="text-muted">
-              {currentSession.tags?.length ? `Tags: ${currentSession.tags.join(', ')}` : 'No tags'} • {currentSession.messages.length} messages
+              {#if currentSession.file}
+                {`File: ${currentSession.file}`} • {currentSession.messages.length} messages
+              {:else}
+                {currentSession.tags?.length ? `Tags: ${currentSession.tags.join(', ')}` : 'No tags'} • {currentSession.messages.length} messages
+              {/if}
             </small>
           </div>
         </div>
@@ -361,13 +426,30 @@
       </div>
     {:else}
       <!-- No Session Selected -->
+      <div class="chat-header p-3 bg-white border-bottom shadow-sm">
+        <div class="d-flex align-items-center">
+          <a 
+            href="/" 
+            class="btn btn-outline-secondary btn-sm me-3"
+            aria-label="Back to overview"
+            title="Back to overview (Esc)"
+          >
+            <i class="bi bi-arrow-left"></i>
+            <span class="d-none d-sm-inline ms-1">Overview</span>
+          </a>
+          <div>
+            <h4 class="mb-0 text-primary">Chat</h4>
+            <small class="text-muted">Select a session or create a new one</small>
+          </div>
+        </div>
+      </div>
       <div class="no-session d-flex flex-column align-items-center justify-content-center h-100 text-center p-4">
         <i class="bi bi-chat-square-heart display-1 text-primary mb-4"></i>
         <h3 class="text-primary mb-3">Welcome</h3>
         <p class="text-muted mb-4 lead">
           Select an existing chat session from the sidebar or create a new one to start chatting with your documents.
         </p>
-        <button class="btn btn-primary btn-lg" onclick={createNewSession} disabled={sessionLoading}>
+        <button class="btn btn-primary btn-lg" onclick={() => createNewSession()} disabled={sessionLoading}>
           {#if sessionLoading}
             <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
             Creating...

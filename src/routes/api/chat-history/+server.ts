@@ -19,6 +19,7 @@ interface ChatSession {
   messages: ChatMessage[];
   createdAt: number;
   updatedAt: number;
+  file?: string;
 }
 
 async function ensureChatHistoryDir() {
@@ -89,14 +90,15 @@ export async function GET({ url }: RequestEvent) {
 // POST /api/chat-history - Create new chat session
 export async function POST({ request }: RequestEvent) {
   try {
-    const { tags, title } = await request.json();
+    const { tags, title, file } = await request.json();
     const session: ChatSession = {
       id: uuidv4(),
       tags: Array.isArray(tags) ? tags : [],
       title: title || 'New Chat',
       messages: [],
       createdAt: Date.now(),
-      updatedAt: Date.now()
+      updatedAt: Date.now(),
+      file: typeof file === 'string' ? file : undefined
     };
 
     await saveChatSession(session);

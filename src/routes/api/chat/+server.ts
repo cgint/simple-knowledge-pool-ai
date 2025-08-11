@@ -58,6 +58,7 @@ export async function POST({ request }: RequestEvent) {
     let message: string | undefined;
     let history: ChatMessage[] | undefined;
     let fileParts: { mimeType: string; dataBase64: string }[] | undefined;
+    let fileFromSession: string | undefined;
 
     const contentType = request.headers.get('content-type') || '';
     if (contentType.includes('multipart/form-data')) {
@@ -71,6 +72,10 @@ export async function POST({ request }: RequestEvent) {
       if (tagsRaw) {
         try { const parsed = JSON.parse(tagsRaw); if (Array.isArray(parsed)) tags = parsed as string[]; } catch {}
       }
+      const fileNameRaw = form.get('fileName') as string | undefined;
+      if (fileNameRaw) {
+        fileFromSession = fileNameRaw;
+      }
       const maybeFile = form.get('file');
       if (maybeFile && maybeFile instanceof File) {
         const buf = Buffer.from(await maybeFile.arrayBuffer());
@@ -81,10 +86,26 @@ export async function POST({ request }: RequestEvent) {
       tags = body.tags;
       message = body.message;
       history = body.history;
+      if (typeof body.file === 'string') {
+        fileFromSession = body.file;
+      }
     }
 
     if (!message) {
       return json({ error: 'Message is required' }, { status: 400 });
+    }
+
+    // If a session-level file is specified and we have not already attached a file, attach it
+    if (!fileParts && fileFromSession) {
+      try {
+        const absPath = path.join(uploadsDir, fileFromSession);
+        const buf = await readFile(absPath);
+        const lower = fileFromSession.toLowerCase();
+        const mime = lower.endsWith('.pdf') ? 'application/pdf' : 'application/octet-stream';
+        fileParts = [{ mimeType: mime, dataBase64: buf.toString('base64') }];
+      } catch (e) {
+        console.error('Failed to read session file for chat:', fileFromSession, e);
+      }
     }
 
     // Build context from tags (if provided)
