@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "@sveltejs/adapter-auto": "^6.0.1",
+    "@sveltejs/adapter-node": "^5.2.14",
     "@sveltejs/kit": "^2.5.18",
     "@sveltejs/vite-plugin-svelte": "^4.0.0-next.6",
     "@testing-library/jest-dom": "^6.6.4",
@@ -37,8 +38,8 @@
     "@google/generative-ai": "0.*",
     "eslint-plugin-unused-imports": "^4.1.4",
     "html-pdf": "^3.0.1",
-    "mhtml-to-html": "^2.0.0",
     "marked": "^12.0.2",
+    "mhtml-to-html": "^2.0.0",
     "sanitize-html": "^2.13.0",
     "uuid": "^11.1.0",
     "wkhtmltopdf": "^0.4.0"
