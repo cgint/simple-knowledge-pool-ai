@@ -1,7 +1,7 @@
 import { env } from '$env/dynamic/private';
 export const GEMINI_API_KEY = env.GEMINI_API_KEY;
 export const AI_RETRY_MAX_ATTEMPTS: number = 1;
-export const AI_TIMEOUT_MS: number = 30000;
+export const AI_TIMEOUT_MS: number = 120000;
 
 // LLM Configuration
 export const DEFAULT_MODEL = 'gemini-2.5-flash';
