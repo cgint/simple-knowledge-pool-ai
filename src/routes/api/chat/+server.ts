@@ -82,8 +82,8 @@ export async function POST({ request }: RequestEvent) {
     }
 
     const filenames = Array.from(filenamesSet);
+    console.log('Filenames of files sent to LLM: ', filenames);
     const fileParts = filenames.length > 0 ? await getFilePartsFromFiles(filenames) : undefined;
-
     // Call LLM with history, message, and file parts (no textual pool context)
     const response = await processWithLLM('', history || [], message, fileParts && fileParts.length > 0 ? fileParts : undefined);
 

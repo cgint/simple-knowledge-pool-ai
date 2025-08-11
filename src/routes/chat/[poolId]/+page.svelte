@@ -80,8 +80,10 @@
       tags = t ? [t] : [];
       selectedFile = null;
       routeHandled = true;
-      // Always show all sessions in sidebar
-      loadChatSessions(false);
+      // Auto-create a new session for this tag after loading sessions
+      loadChatSessions(false).then(() => {
+        createNewSession();
+      });
     }
 
     if (!routeHandled) {

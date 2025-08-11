@@ -116,14 +116,16 @@ async function makeCallWithRetry(endpoint: string, requestBody: any): Promise<LL
         setTimeout(() => reject(new Error('Request timeout')), AI_TIMEOUT_MS)
       );
 
-      console.log('endpoint', endpoint.slice(0, -10));
+      console.log('endpoint', endpoint.slice(0, -20));
+      const stringifiedBody = JSON.stringify(requestBody);
+      console.log('stringifiedBody length: ', stringifiedBody.length);
 
       const apiCall = fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(requestBody),
+        body: stringifiedBody,
       });
 
       const response = await Promise.race([apiCall, timeoutPromise]);
