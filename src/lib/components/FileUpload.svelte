@@ -214,8 +214,4 @@
 	.upload-content {
 		pointer-events: none;
 	}
-	
-	.badge {
-		font-size: 0.75rem;
-	}
 </style>

@@ -137,7 +137,15 @@
         <div class="list-group-item d-flex align-items-center justify-content-between gap-2">
           <div class="file-name text-truncate me-2">
             <i class="bi bi-file-earmark-text text-primary me-2"></i>
-            {file}
+            <a 
+              href={`/api/files/${encodeURIComponent(file)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="text-decoration-none text-dark hover-link"
+              title="Open PDF in new tab"
+            >
+              {file}
+            </a>
           </div>
           <div class="flex-grow-1 d-flex align-items-center gap-2 overflow-auto text-nowrap">
             <div class="tags d-flex align-items-center gap-2">
@@ -183,6 +191,10 @@
   .file-name { max-width: 30%; }
   .quick-tags { display: flex; flex-wrap: wrap; }
   .badge button { vertical-align: middle; }
+  .hover-link:hover {
+    color: #0d6efd !important;
+    text-decoration: underline !important;
+  }
 </style>
 
 
