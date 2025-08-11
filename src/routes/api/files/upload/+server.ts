@@ -16,6 +16,47 @@ import { convert as convertMhtmlToHtml } from 'mhtml-to-html';
 import wkhtmltopdf from 'wkhtmltopdf';
 import { execFile } from 'child_process';
 
+/**
+ * Sanitizes a filename to be safe for file system storage.
+ * Removes path components and replaces invalid characters with underscores.
+ * @param filename The original filename.
+ * @returns A sanitized filename.
+ */
+function sanitizeFilename(filename: string): string {
+  // Get just the base name to prevent directory traversal
+  const basename = path.basename(filename);
+  // Replace characters that are generally unsafe or problematic in filenames
+  // This includes /, \, ?, %, *, :, |, ", <, >, ., and control characters.
+  // We keep dots for file extensions, but ensure they are not leading/trailing.
+  let sanitized = basename
+    .replace(/[/?%*:|"<>]/g, '_') // Replace common invalid characters
+    .replace(/[\x00-\x1F\x7F]/g, '_') // Remove control characters
+    .replace(/\s+/g, '-') // Replace spaces with hyphens
+    .replace(/--+/g, '-') // Replace multiple hyphens with a single one
+    .replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
+
+  // Ensure no leading/trailing dots, which can be problematic on some systems
+  sanitized = sanitized.replace(/^\.+|\.+$/g, '');
+
+  // If the filename becomes empty after sanitization, provide a default
+  if (!sanitized) {
+    return `untitled_${Date.now()}`;
+  }
+
+  return sanitized;
+}
+
+interface FileMetadata {
+  originalFilename: string;
+  sourceMhtFile?: string; // Original MHT filename if this PDF was converted from one
+  uploadedAt: number;
+}
+
+async function saveFileMetadata(sanitizedFileName: string, metadata: FileMetadata): Promise<void> {
+  const metadataFilePath = path.join(uploadDir, `${sanitizedFileName}.meta.json`);
+  await writeFile(metadataFilePath, JSON.stringify(metadata, null, 2));
+}
+
 export async function POST(event: RequestEvent) {
   try {
     const formData = await event.request.formData();
@@ -29,13 +70,23 @@ export async function POST(event: RequestEvent) {
     const generatedPdfNames: string[] = [];
 
     for (const file of files) {
-      const filePath = path.join(uploadDir, file.name);
+      const originalFileName = file.name;
+      const sanitizedFileName = sanitizeFilename(originalFileName);
+      const filePath = path.join(uploadDir, sanitizedFileName);
       const buffer = Buffer.from(await file.arrayBuffer());
+
+      // Save the original file
       await writeFile(filePath, buffer);
-      uploadedFileNames.push(file.name);
+      uploadedFileNames.push(sanitizedFileName);
+
+      // Save metadata for the original file
+      await saveFileMetadata(sanitizedFileName, {
+        originalFilename: originalFileName,
+        uploadedAt: Date.now(),
+      });
 
       // If an MHT/MHTML file was uploaded, convert and store a PDF alongside it
-      const lowerName = file.name.toLowerCase();
+      const lowerName = originalFileName.toLowerCase();
       const isMht = lowerName.endsWith('.mht') || lowerName.endsWith('.mhtml');
       if (isMht) {
         try {
@@ -60,14 +111,14 @@ export async function POST(event: RequestEvent) {
             }
           } catch {
             // Fallback to CLI converter into a temp file
-            const tmpHtml = path.join(uploadDir, lowerName.replace(/\.(mht|mhtml)$/i, '.html'));
+            const tmpHtml = path.join(uploadDir, sanitizedFileName.replace(/\.(mht|mhtml)$/i, '.html'));
             await new Promise<void>((resolve, reject) => {
               const bin = path.join(process.cwd(), 'node_modules', '.bin', 'mhtml-to-html');
               execFile(bin, [filePath, '--output', tmpHtml], (err) => (err ? reject(err) : resolve()));
             });
             htmlString = fs.readFileSync(tmpHtml, 'utf8');
           }
-          const pdfBasename = lowerName.replace(/\.(mht|mhtml)$/i, '.pdf');
+          const pdfBasename = sanitizedFileName.replace(/\.(mht|mhtml)$/i, '.pdf');
           const pdfPath = path.join(uploadDir, pdfBasename);
 
           // Generate PDF using wkhtmltopdf (installed in the Docker image)
@@ -82,14 +133,23 @@ export async function POST(event: RequestEvent) {
             });
             const s = fs.statSync(pdfPath);
             if (!s.size) throw new Error('wkhtmltopdf produced zero bytes');
-          } catch (wkErr) {
-            // Rethrow so the outer catch logs the failure; no PhantomJS/html-pdf fallback anymore
-            throw wkErr;
-          }
 
-          generatedPdfNames.push(pdfBasename);
+            generatedPdfNames.push(pdfBasename);
+
+            // Save metadata for the generated PDF
+            await saveFileMetadata(pdfBasename, {
+              originalFilename: pdfBasename, // The name of the generated PDF
+              sourceMhtFile: originalFileName, // The original MHT file it came from
+              uploadedAt: Date.now(),
+            });
+
+          } catch (wkErr) {
+            console.error('wkhtmltopdf conversion failed for', file.name, wkErr);
+            // Continue processing other files even if one conversion fails
+          }
         } catch (convErr) {
           console.error('MHT to PDF conversion failed for', file.name, convErr);
+          // Continue processing other files even if one conversion fails
         }
       }
     }
