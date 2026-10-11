@@ -4,7 +4,7 @@ export const AI_RETRY_MAX_ATTEMPTS: number = 1;
 export const AI_TIMEOUT_MS: number = 120000;
 
 // LLM Configuration
-export const DEFAULT_MODEL = 'gemini-2.5-flash';
+export const DEFAULT_MODEL = 'gemini-3.8-flash';
 export const MAX_CONTEXT_LENGTH = 1000000; // Gemini 2.5 supports up to 1M tokens
 
 // Chat Configuration
